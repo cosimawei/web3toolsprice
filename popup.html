@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>加密货币价格追踪</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>加密货币价格追踪</h1>
+      <div class="controls">
+        <button id="settingsBtn" class="icon-btn" title="设置">⚙️</button>
+        <button id="refreshBtn" class="icon-btn" title="刷新">🔄</button>
+      </div>
+    </div>
+
+    <!-- 币种网格 -->
+    <div class="coins-grid">
+      <!-- 币种卡片将通过 JavaScript 动态生成 -->
+    </div>
+
+    <!-- K线图展开区域 -->
+    <div class="chart-section" id="chartSection">
+      <div class="chart-header">
+        <div class="chart-title">
+          <span id="chartCoinName">BTC/USDT</span>
+          <span class="chart-subtitle">实时K线图</span>
+        </div>
+        <button class="chart-close" id="closeChart">收起 ▲</button>
+      </div>
+      <div class="chart-wrapper">
+        <div id="tradingview-chart"></div>
+      </div>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- JavaScript -->
+  <script src="popup.js"></script>
+</body>
+</html>
