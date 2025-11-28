@@ -1,6 +1,7 @@
 // 存储键名
 const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
+const API_APPCODE_KEY = 'metalApiAppCode';
 
 // 随机图标池
 const RANDOM_ICONS = [
@@ -108,6 +109,13 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('设置页面已加载');
   loadCustomCoins();
   loadCustomStocks();
+  loadApiConfig();
+
+  // 绑定保存API配置按钮
+  const saveApiBtn = document.getElementById('saveApiBtn');
+  if (saveApiBtn) {
+    saveApiBtn.addEventListener('click', saveApiConfig);
+  }
 
   // 绑定添加代币按钮事件
   const addBtn = document.getElementById('addBtn');
@@ -429,7 +437,10 @@ async function validateStock(code, market) {
       return { valid: false };
     }
 
-    const text = await response.text();
+    // 腾讯API返回GBK编码
+    const buffer = await response.arrayBuffer();
+    const decoder = new TextDecoder('gbk');
+    const text = decoder.decode(buffer);
     return config.parseValidation(text);
   } catch (error) {
     console.error(`验证失败:`, error);
@@ -613,5 +624,49 @@ function loadCustomStocks() {
         </div>
       `;
     }).join('');
+  });
+}
+
+// ==================== API配置相关函数 ====================
+
+// 加载API配置
+function loadApiConfig() {
+  chrome.storage.local.get([API_APPCODE_KEY], function(result) {
+    const appCode = result[API_APPCODE_KEY] || '';
+    const input = document.getElementById('apiAppCode');
+    const status = document.getElementById('apiStatus');
+
+    if (input && appCode) {
+      input.value = appCode;
+      status.innerHTML = '✅ 已配置AppCode';
+      status.style.color = '#4CAF50';
+    } else if (status) {
+      status.innerHTML = '⚠️ 未配置AppCode，贵金属价格将无法显示';
+      status.style.color = '#ff9800';
+    }
+  });
+}
+
+// 保存API配置
+function saveApiConfig() {
+  const input = document.getElementById('apiAppCode');
+  const appCode = input.value.trim();
+  const successMsg = document.getElementById('apiSuccessMessage');
+  const status = document.getElementById('apiStatus');
+
+  if (!appCode) {
+    status.innerHTML = '❌ 请输入AppCode';
+    status.style.color = '#f44336';
+    return;
+  }
+
+  chrome.storage.local.set({ [API_APPCODE_KEY]: appCode }, function() {
+    successMsg.classList.add('show');
+    status.innerHTML = '✅ 已配置AppCode';
+    status.style.color = '#4CAF50';
+
+    setTimeout(() => {
+      successMsg.classList.remove('show');
+    }, 3000);
   });
 }

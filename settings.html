@@ -364,8 +364,28 @@
 </head>
 <body>
   <div class="header">
-    <h1>代币设置</h1>
+    <h1>资产设置</h1>
     <button class="close-btn" id="closeBtn">关闭</button>
+  </div>
+
+  <!-- API配置 -->
+  <div class="section">
+    <div class="section-title">🔑 贵金属API配置</div>
+    <div class="info-text" style="margin-bottom:15px;">
+      配置阿里云贵金属API的AppCode，用于获取黄金白银实时价格。<br>
+      <a href="https://market.aliyun.com/products/57000002/cmapi00062498.html" target="_blank" style="color:#4CAF50;">获取AppCode →</a>
+    </div>
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>AppCode</label>
+        <input type="password" id="apiAppCode" placeholder="输入你的AppCode" maxlength="50">
+      </div>
+      <button class="add-btn" id="saveApiBtn">保存</button>
+    </div>
+    <div class="success-message" id="apiSuccessMessage">
+      ✅ AppCode 保存成功！
+    </div>
+    <div id="apiStatus" class="info-text" style="margin-top:10px;"></div>
   </div>
 
   <div class="section">

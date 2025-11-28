@@ -215,6 +215,12 @@ body {
   margin-left: 4px;
 }
 
+/* 市场旗帜标识 */
+.market-flag {
+  font-size: 12px;
+  margin-left: 4px;
+}
+
 /* Chart Section */
 .chart-section {
   max-height: 0;

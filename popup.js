@@ -22,6 +22,11 @@ const DEFAULT_CRYPTO = [
   { symbol: 'ADAUSDT', name: 'ADA', fullName: 'Cardano', icon: '₳', source: 'binance', tradingPair: 'ADAUSDT', type: 'crypto' }
 ];
 
+// 股市（默认）
+const DEFAULT_STOCKS = [
+  { symbol: 'sh000001', name: '上证指数', fullName: 'SSE Composite', icon: '📊', source: 'cn', tradingPair: 'sh000001', type: 'stock' }
+];
+
 // 贵金属（固定）
 const DEFAULT_METALS = [
   { symbol: 'XAUUSD', name: '黄金', fullName: 'Gold', icon: '🥇', source: 'metal', tradingPair: 'XAUUSD', type: 'metal' },
@@ -82,10 +87,10 @@ async function loadAllData() {
       const coinsOrder = result[COINS_ORDER_KEY] || [];
       cryptoList = buildOrderedList(DEFAULT_CRYPTO, customCoins, coinsOrder, 'crypto');
 
-      // A股
+      // 股市
       const customStocks = result[CUSTOM_STOCKS_KEY] || [];
       const stocksOrder = result[STOCKS_ORDER_KEY] || [];
-      stockList = buildOrderedList([], customStocks, stocksOrder, 'stock');
+      stockList = buildOrderedList(DEFAULT_STOCKS, customStocks, stocksOrder, 'stock');
 
       // 贵金属（固定）
       metalList = [...DEFAULT_METALS];
@@ -147,14 +152,21 @@ function renderPanel(gridId, list) {
     card.dataset.symbol = item.symbol;
     card.dataset.type = item.type;
 
+    // 虚拟币交易所标识
     const sourceIcon = item.source !== 'binance' && item.type === 'crypto'
       ? `<span class="source-indicator">${EXCHANGE_ICONS[item.source] || ''}</span>` : '';
+
+    // 股票市场标识
+    const MARKET_FLAGS = { cn: '🇨🇳', hk: '🇭🇰', us: '🇺🇸' };
+    const marketFlag = item.type === 'stock' && MARKET_FLAGS[item.source]
+      ? `<span class="market-flag">${MARKET_FLAGS[item.source]}</span>` : '';
 
     card.innerHTML = `
       <div class="coin-card-header">
         <span class="coin-card-icon">${item.icon}</span>
         <span class="coin-card-name">${item.name}</span>
         ${sourceIcon}
+        ${marketFlag}
       </div>
       <div class="coin-card-price" id="price-${item.symbol}">
         <span class="coin-card-loading">加载中...</span>
@@ -181,16 +193,21 @@ function renderPanel(gridId, list) {
 
 // ==================== 数据连接 ====================
 function connectAll() {
+  console.log('connectAll 被调用');
   // 虚拟币
   connectCrypto();
-  // A股
+  // 股票
   if (stockList.length > 0) fetchStockPrices();
   // 贵金属
+  console.log('准备调用 fetchMetalPrices');
   fetchMetalPrices();
 }
 
 function refreshAll() {
+  console.log('刷新按钮点击');
   closeAllConnections();
+  // 重新渲染面板
+  renderAllPanels();
   connectAll();
 }
 
@@ -219,7 +236,9 @@ function connectCrypto() {
 
 function connectBinanceWS(coin) {
   const sym = coin.symbol;
-  if (wsConnections[sym]) wsConnections[sym].close();
+  if (wsConnections[sym]) {
+    try { wsConnections[sym].close(); } catch(e) {}
+  }
 
   const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${coin.tradingPair.toLowerCase()}@ticker`);
   ws.onmessage = e => {
@@ -227,7 +246,12 @@ function connectBinanceWS(coin) {
     priceData[sym] = { price: parseFloat(d.c), changePercent: parseFloat(d.P) };
     updateCard(sym);
   };
-  ws.onclose = () => setTimeout(() => connectBinanceWS(coin), 3000);
+  ws.onerror = () => {}; // 忽略错误
+  ws.onclose = () => {
+    if (wsConnections[sym] === ws) {
+      setTimeout(() => connectBinanceWS(coin), 3000);
+    }
+  };
   wsConnections[sym] = ws;
 }
 
@@ -302,7 +326,10 @@ async function fetchStockPrices() {
         const code = stock.tradingPair;
         const r = await window.fetch(`https://qt.gtimg.cn/q=${code}`);
         if (r.ok) {
-          const text = await r.text();
+          // 腾讯API返回GBK编码，需要转换
+          const buffer = await r.arrayBuffer();
+          const decoder = new TextDecoder('gbk');
+          const text = decoder.decode(buffer);
           const parts = text.split('~');
           if (parts.length > 32) {
             const price = parseFloat(parts[3]);
@@ -320,39 +347,182 @@ async function fetchStockPrices() {
 }
 
 // ==================== 贵金属数据 ====================
-async function fetchMetalPrices() {
-  const fetchOnce = async () => {
-    // 使用外汇API获取黄金白银价格
-    try {
-      // 黄金 XAU/USD
-      const goldRes = await window.fetch('https://api.exchangerate-api.com/v4/latest/XAU');
-      if (goldRes.ok) {
-        const data = await goldRes.json();
-        const goldPrice = 1 / data.rates.USD; // XAU to USD
-        priceData['XAUUSD'] = { price: goldPrice, changePercent: 0, isMetal: true };
-        updateCard('XAUUSD');
-      }
-    } catch (e) {
-      // 备用：使用固定显示
-      console.log('黄金价格获取失败，使用TradingView');
-    }
+const API_APPCODE_KEY = 'metalApiAppCode';
 
-    try {
-      // 白银 XAG/USD
-      const silverRes = await window.fetch('https://api.exchangerate-api.com/v4/latest/XAG');
-      if (silverRes.ok) {
-        const data = await silverRes.json();
-        const silverPrice = 1 / data.rates.USD;
-        priceData['XAGUSD'] = { price: silverPrice, changePercent: 0, isMetal: true };
-        updateCard('XAGUSD');
+async function fetchMetalPrices() {
+  // 先获取AppCode配置
+  const appCode = await new Promise(resolve => {
+    chrome.storage.local.get([API_APPCODE_KEY], result => {
+      resolve(result[API_APPCODE_KEY] || '');
+    });
+  });
+
+  const fetchOnce = async () => {
+    console.log('开始获取贵金属数据...', appCode ? '使用API' : '使用换算');
+
+    // 始终获取国际金价（Binance PAXG）
+    await fetchInternationalGold();
+
+    if (appCode) {
+      // 有AppCode，使用阿里云API获取中国金价和白银
+      await fetchMetalFromApi(appCode);
+    } else {
+      // 无AppCode，用换算的中国金价
+      if (priceData['XAUUSD']) {
+        const usdPrice = priceData['XAUUSD'].price;
+        priceData['XAUUSD'].cnPrice = usdPrice / 31.1035 * 7.1;
+        updateGoldCard();
       }
-    } catch (e) {
-      console.log('白银价格获取失败');
+      // 白银显示提示
+      const silverCard = document.getElementById('price-XAGUSD');
+      if (silverCard) {
+        silverCard.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.6)">点击查看K线</span>';
+      }
     }
   };
 
   fetchOnce();
-  pollingIntervals['metal'] = setInterval(fetchOnce, 30000); // 30秒更新
+  pollingIntervals['metal'] = setInterval(fetchOnce, 120000); // 120秒更新，节省API调用
+}
+
+// 获取国际金价（Binance PAXG）
+async function fetchInternationalGold() {
+  try {
+    const goldRes = await window.fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=PAXGUSDT');
+    if (goldRes.ok) {
+      const data = await goldRes.json();
+      const price = parseFloat(data.lastPrice);
+      const change = parseFloat(data.priceChangePercent);
+      console.log('国际黄金价格(PAXG):', price);
+      if (!isNaN(price) && price > 0) {
+        priceData['XAUUSD'] = {
+          price: price,
+          changePercent: change,
+          isMetal: true
+        };
+      }
+    }
+  } catch (e) {
+    console.error('国际黄金价格获取失败:', e);
+  }
+}
+
+// 使用阿里云API获取贵金属价格
+async function fetchMetalFromApi(appCode) {
+  // 获取伦敦金银价格（白银）
+  try {
+    const res = await window.fetch('https://tsgold.market.alicloudapi.com/london', {
+      headers: { 'Authorization': `APPCODE ${appCode}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      console.log('伦敦金银数据:', data);
+      if (data && data.code === 1 && data.data && data.data.list) {
+        const list = data.data.list;
+
+        // 白银 - 伦敦银
+        const silver = list.find(item => item.type === '伦敦银');
+        if (silver) {
+          const price = parseFloat(silver.price);
+          const change = parseFloat(silver.changepercent.replace('%', '').replace('+', ''));
+          const isNeg = silver.changepercent.includes('-');
+          if (!isNaN(price) && price > 0) {
+            // 换算人民币/克：美元/盎司 ÷ 31.1035 × 汇率
+            const cnPrice = price / 31.1035 * 7.1;
+            priceData['XAGUSD'] = {
+              price,
+              cnPrice,
+              changePercent: isNeg ? -Math.abs(change) : change,
+              isMetal: true
+            };
+            updateSilverCard();
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log('伦敦金银API请求失败:', e.message);
+  }
+
+  // 获取上海黄金期货价格（中国金价）
+  try {
+    const res = await window.fetch('https://tsgold.market.alicloudapi.com/shgold', {
+      headers: { 'Authorization': `APPCODE ${appCode}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      console.log('上海黄金数据:', data);
+      if (data && data.code === 1 && data.data && data.data.list && priceData['XAUUSD']) {
+        // 找 AU99.99 (AU9999)
+        const gold = data.data.list.find(item => item.type === 'AU99.99' || item.typename === 'AU9999');
+        if (gold) {
+          const cnPrice = parseFloat(gold.price);
+          if (!isNaN(cnPrice) && cnPrice > 0) {
+            priceData['XAUUSD'].cnPrice = cnPrice;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log('上海黄金API请求失败:', e.message);
+  }
+
+  // 如果没获取到中国金价，用换算
+  if (priceData['XAUUSD'] && !priceData['XAUUSD'].cnPrice) {
+    priceData['XAUUSD'].cnPrice = priceData['XAUUSD'].price / 31.1035 * 7.1;
+  }
+
+  // 白银没数据时显示提示
+  if (!priceData['XAGUSD']) {
+    const silverCard = document.getElementById('price-XAGUSD');
+    if (silverCard) {
+      silverCard.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.6)">点击查看K线</span>';
+    }
+  }
+
+  updateGoldCard();
+}
+
+// 更新黄金卡片
+function updateGoldCard() {
+  const data = priceData['XAUUSD'];
+  if (!data) return;
+
+  const priceEl = document.getElementById('price-XAUUSD');
+  const changeEl = document.getElementById('change-XAUUSD');
+  if (!priceEl || !changeEl) return;
+
+  // 显示格式：$国际价格 (¥中国价格/克)
+  let priceText = `$${formatPrice(data.price)}`;
+  if (data.cnPrice) {
+    priceText += ` <span style="font-size:12px;color:rgba(255,255,255,0.7)">(¥${formatPrice(data.cnPrice)}/克)</span>`;
+  }
+  priceEl.innerHTML = priceText;
+
+  const pos = data.changePercent >= 0;
+  changeEl.className = `coin-card-change ${pos ? 'positive' : 'negative'}`;
+  changeEl.innerHTML = `<span>${pos ? '+' : ''}${data.changePercent.toFixed(2)}%</span>`;
+}
+
+// 更新白银卡片
+function updateSilverCard() {
+  const data = priceData['XAGUSD'];
+  if (!data) return;
+
+  const priceEl = document.getElementById('price-XAGUSD');
+  const changeEl = document.getElementById('change-XAGUSD');
+  if (!priceEl || !changeEl) return;
+
+  // 显示格式：$国际价格 (¥估算价格/克)
+  let priceText = `$${formatPrice(data.price)}`;
+  if (data.cnPrice) {
+    priceText += ` <span style="font-size:12px;color:rgba(255,255,255,0.7)">(≈¥${formatPrice(data.cnPrice)}/克)</span>`;
+  }
+  priceEl.innerHTML = priceText;
+
+  const pos = data.changePercent >= 0;
+  changeEl.className = `coin-card-change ${pos ? 'positive' : 'negative'}`;
+  changeEl.innerHTML = `<span>${pos ? '+' : ''}${data.changePercent.toFixed(2)}%</span>`;
 }
 
 // ==================== UI 更新 ====================
@@ -439,31 +609,57 @@ function openChart(item) {
   const container = document.getElementById('tradingview-chart');
   container.innerHTML = '';
 
-  let tvSymbol;
-  if (item.type === 'crypto') {
-    const exMap = { binance: 'BINANCE', okx: 'OKX', bitget: 'BITGET', mexc: 'MEXC' };
-    tvSymbol = `${exMap[item.source] || 'BINANCE'}:${item.name}USDT`;
-  } else if (item.type === 'stock') {
-    // 股票使用对应交易所
-    const code = item.tradingPair;
-    if (code.startsWith('sh')) {
-      tvSymbol = `SSE:${code.slice(2)}`;
-    } else if (code.startsWith('sz')) {
-      tvSymbol = `SZSE:${code.slice(2)}`;
-    } else if (code.startsWith('hk')) {
-      tvSymbol = `HKEX:${code.slice(2)}`;
-    } else if (code.startsWith('us')) {
-      tvSymbol = `NASDAQ:${code.slice(2)}`;
-    } else {
-      tvSymbol = `SSE:${code}`;
-    }
-  } else if (item.type === 'metal') {
-    tvSymbol = item.symbol === 'XAUUSD' ? 'TVC:GOLD' : 'TVC:SILVER';
-  }
-
   const iframe = document.createElement('iframe');
   iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
-  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=15&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
+
+  if (item.type === 'crypto') {
+    // 虚拟币用TradingView
+    const exMap = { binance: 'BINANCE', okx: 'OKX', bitget: 'BITGET', mexc: 'MEXC' };
+    const tvSymbol = `${exMap[item.source] || 'BINANCE'}:${item.name}USDT`;
+    iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=15&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
+  } else if (item.type === 'stock') {
+    // 股票K线
+    const code = item.tradingPair;
+
+    if (code.startsWith('hk')) {
+      // 港股：TradingView嵌入不支持，打开新标签页
+      const hkCode = code.slice(2).replace(/^0+/, '');
+      container.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
+          <p style="color:#fff;margin-bottom:20px;font-size:14px;">港股K线需要在TradingView网站查看</p>
+          <button id="openTvBtn" style="padding:12px 24px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+            🔗 打开TradingView查看
+          </button>
+        </div>
+      `;
+      document.getElementById('openTvBtn').addEventListener('click', () => {
+        window.open(`https://www.tradingview.com/chart/?symbol=HKEX:${hkCode}`, '_blank');
+      });
+      return;
+    }
+
+    // A股、美股用TradingView嵌入
+    let tvSymbol;
+    let interval = 'D'; // 默认日K
+    if (code.startsWith('sh')) {
+      tvSymbol = `SSE:${code.slice(2)}`;
+      interval = 'D'; // A股日K
+    } else if (code.startsWith('sz')) {
+      tvSymbol = `SZSE:${code.slice(2)}`;
+      interval = 'D'; // A股日K
+    } else if (code.startsWith('us')) {
+      tvSymbol = `NASDAQ:${code.slice(2)}`;
+      interval = '15'; // 美股15分钟
+    } else {
+      tvSymbol = code;
+    }
+    iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
+  } else if (item.type === 'metal') {
+    // 贵金属用TradingView
+    const tvSymbol = item.symbol === 'XAUUSD' ? 'TVC:GOLD' : 'TVC:SILVER';
+    iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=15&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
+  }
+
   container.appendChild(iframe);
 }
 
