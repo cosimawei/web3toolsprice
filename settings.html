@@ -12,7 +12,7 @@
     }
 
     body {
-      width: 600px;
+      width: 650px;
       min-height: 400px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -89,11 +89,74 @@
     .coin-symbol {
       font-weight: 600;
       font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .coin-full-name {
       font-size: 12px;
       opacity: 0.7;
+    }
+
+    /* 数据源选择样式 */
+    .data-source-section {
+      margin-bottom: 15px;
+    }
+
+    .section-label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 10px;
+      opacity: 0.9;
+    }
+
+    .radio-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .radio-item {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .radio-item:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .radio-item input[type="radio"] {
+      margin-right: 8px;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .radio-item input[type="radio"]:checked + .radio-label {
+      color: #4CAF50;
+    }
+
+    .radio-item:has(input:checked) {
+      border-color: #4CAF50;
+      background: rgba(76, 175, 80, 0.1);
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .radio-icon {
+      font-size: 14px;
     }
 
     .add-coin-form {
@@ -145,11 +208,42 @@
       font-size: 14px;
       align-self: flex-end;
       transition: all 0.3s;
+      min-width: 80px;
     }
 
     .add-btn:hover {
       background: #45a049;
       transform: translateY(-2px);
+    }
+
+    .add-btn:disabled {
+      background: #666;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .add-btn.loading {
+      position: relative;
+      color: transparent;
+    }
+
+    .add-btn.loading::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      top: 50%;
+      left: 50%;
+      margin-left: -8px;
+      margin-top: -8px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
 
     .custom-coins-list {
@@ -191,16 +285,24 @@
       line-height: 1.5;
     }
 
-    .success-message {
-      background: rgba(76, 175, 80, 0.2);
-      border: 1px solid rgba(76, 175, 80, 0.4);
+    .success-message, .error-message {
       border-radius: 6px;
       padding: 12px;
       margin-top: 10px;
       display: none;
     }
 
-    .success-message.show {
+    .success-message {
+      background: rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+    }
+
+    .error-message {
+      background: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.4);
+    }
+
+    .success-message.show, .error-message.show {
       display: block;
       animation: fadeIn 0.3s;
     }
@@ -214,6 +316,34 @@
       text-align: center;
       padding: 20px;
       opacity: 0.5;
+    }
+
+    /* 数据源标签样式 */
+    .source-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+
+    .source-badge.binance {
+      background: rgba(243, 186, 47, 0.3);
+      color: #f3ba2f;
+    }
+
+    .source-badge.okx {
+      background: rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+
+    .source-badge.bitget {
+      background: rgba(0, 217, 126, 0.3);
+      color: #00d97e;
+    }
+
+    .source-badge.mexc {
+      background: rgba(55, 114, 255, 0.3);
+      color: #3772ff;
     }
   </style>
 </head>
@@ -268,25 +398,60 @@
   <div class="section">
     <div class="section-title">添加自定义代币</div>
 
-    <div class="add-coin-form">
-      <div class="input-group">
-        <label>代币符号（如：DOGE）</label>
-        <input type="text" id="coinSymbol" placeholder="DOGE" maxlength="10">
+    <!-- 数据源选择 -->
+    <div class="data-source-section">
+      <label class="section-label">选择交易所</label>
+      <div class="radio-group">
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="binance" checked>
+          <span class="radio-label">
+            <span class="radio-icon">🔶</span>
+            Binance
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="okx">
+          <span class="radio-label">
+            <span class="radio-icon">⚫</span>
+            OKX
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="bitget">
+          <span class="radio-label">
+            <span class="radio-icon">🟢</span>
+            Bitget
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="mexc">
+          <span class="radio-label">
+            <span class="radio-icon">🔵</span>
+            MEXC
+          </span>
+        </label>
       </div>
-      <div class="input-group">
-        <label>交易对（如：DOGEUSDT）</label>
-        <input type="text" id="tradingPair" placeholder="DOGEUSDT" maxlength="20">
-      </div>
-      <button class="add-btn">添加</button>
     </div>
 
-    <div class="info-text">
-      💡 提示：交易对必须是Binance支持的格式，如 DOGEUSDT、SHIBUSDT 等。<br>
-      添加后会在主界面显示，支持实时价格更新。
+    <!-- 添加表单 -->
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>代币符号</label>
+        <input type="text" id="coinSymbol" placeholder="如：OKB、PEPE" maxlength="15">
+      </div>
+      <button class="add-btn" id="addBtn">添加</button>
+    </div>
+
+    <div class="info-text" id="infoText">
+      💡 系统会自动验证该代币在所选交易所是否存在，支持实时WebSocket推送。
     </div>
 
     <div class="success-message" id="successMessage">
       ✅ 代币添加成功！请返回主界面查看。
+    </div>
+
+    <div class="error-message" id="errorMessage">
+      ❌ <span id="errorText"></span>
     </div>
 
     <div class="section-title" style="margin-top: 20px;">我的自定义代币</div>

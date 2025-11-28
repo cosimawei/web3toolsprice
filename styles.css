@@ -151,6 +151,12 @@ body {
   font-size: 14px;
 }
 
+/* 数据源标识 */
+.source-indicator {
+  font-size: 12px;
+  margin-left: 4px;
+}
+
 /* Chart Section */
 .chart-section {
   max-height: 0;
