@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "多币种价格追踪器",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "WebSocket实时追踪BTC、ETH、SOL等加密货币价格，所有数据实时更新，延迟<1秒，支持TradingView K线图",
   "action": {
     "default_popup": "popup.html",

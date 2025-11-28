@@ -67,13 +67,30 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
   padding: 16px;
-  cursor: pointer;
+  cursor: grab;
   transition: all 0.3s;
   display: flex;
   flex-direction: column;
   gap: 8px;
   backdrop-filter: blur(10px);
   position: relative;
+  user-select: none;
+}
+
+.coin-card:active {
+  cursor: grabbing;
+}
+
+.coin-card.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+  cursor: grabbing;
+}
+
+.coin-card.drag-over {
+  border-color: #4CAF50;
+  background: rgba(76, 175, 80, 0.2);
+  transform: scale(1.02);
 }
 
 .coin-card::after {

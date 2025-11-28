@@ -1,6 +1,21 @@
 // 存储键名
 const CUSTOM_COINS_KEY = 'customCoins';
 
+// 随机图标池
+const RANDOM_ICONS = [
+  '🪙', '💎', '🔷', '🔸', '⭐', '🌟', '✨', '💫',
+  '🚀', '🌙', '☀️', '🔥', '💰', '💵', '💴', '💶',
+  '🏆', '👑', '💠', '🔮', '🎯', '🎲', '🎰', '🃏',
+  '⚡', '💥', '🌈', '🦄', '🐉', '🦅', '🦁', '🐯',
+  '🌀', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚪',
+  '♦️', '♠️', '♣️', '♥️', '🎵', '🎶', '🔑', '🗝️'
+];
+
+// 获取随机图标
+function getRandomIcon() {
+  return RANDOM_ICONS[Math.floor(Math.random() * RANDOM_ICONS.length)];
+}
+
 // 交易所配置
 const EXCHANGES = {
   binance: {
@@ -180,7 +195,7 @@ async function addCoin() {
       const newCoin = {
         symbol: coinKey,
         name: symbol,
-        icon: config.icon,
+        icon: getRandomIcon(),
         source: exchange,
         tradingPair: tradingPair
       };

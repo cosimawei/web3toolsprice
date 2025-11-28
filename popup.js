@@ -4,20 +4,26 @@ const wsConnections = {};
 const priceData = {};
 // 轮询定时器
 let pollingInterval = null;
+// 拖拽相关
+let draggedElement = null;
 
 // 默认币种配置 (全部使用Binance)
-const DEFAULT_COINS = {
-  'BTCUSDT': { name: 'BTC', fullName: 'Bitcoin', icon: '₿', source: 'binance', tradingPair: 'BTCUSDT' },
-  'ETHUSDT': { name: 'ETH', fullName: 'Ethereum', icon: 'Ξ', source: 'binance', tradingPair: 'ETHUSDT' },
-  'SOLUSDT': { name: 'SOL', fullName: 'Solana', icon: '◎', source: 'binance', tradingPair: 'SOLUSDT' },
-  'BNBUSDT': { name: 'BNB', fullName: 'Binance Coin', icon: '🔶', source: 'binance', tradingPair: 'BNBUSDT' },
-  'XRPUSDT': { name: 'XRP', fullName: 'Ripple', icon: '✕', source: 'binance', tradingPair: 'XRPUSDT' },
-  'ADAUSDT': { name: 'ADA', fullName: 'Cardano', icon: '₳', source: 'binance', tradingPair: 'ADAUSDT' }
-};
+const DEFAULT_COINS_LIST = [
+  { symbol: 'BTCUSDT', name: 'BTC', fullName: 'Bitcoin', icon: '₿', source: 'binance', tradingPair: 'BTCUSDT' },
+  { symbol: 'ETHUSDT', name: 'ETH', fullName: 'Ethereum', icon: 'Ξ', source: 'binance', tradingPair: 'ETHUSDT' },
+  { symbol: 'SOLUSDT', name: 'SOL', fullName: 'Solana', icon: '◎', source: 'binance', tradingPair: 'SOLUSDT' },
+  { symbol: 'BNBUSDT', name: 'BNB', fullName: 'Binance Coin', icon: '🔶', source: 'binance', tradingPair: 'BNBUSDT' },
+  { symbol: 'XRPUSDT', name: 'XRP', fullName: 'Ripple', icon: '✕', source: 'binance', tradingPair: 'XRPUSDT' },
+  { symbol: 'ADAUSDT', name: 'ADA', fullName: 'Cardano', icon: '₳', source: 'binance', tradingPair: 'ADAUSDT' }
+];
 
-// 所有币种
-let COINS = {...DEFAULT_COINS};
+// 有序币种列表
+let coinsList = [];
+// 币种映射 (symbol -> coin)
+let COINS = {};
+
 const CUSTOM_COINS_KEY = 'customCoins';
+const COINS_ORDER_KEY = 'coinsOrder';
 
 // 交易所图标映射
 const EXCHANGE_ICONS = {
@@ -50,38 +56,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 为所有代币建立连接
 function connectAllCoins() {
-  // 按交易所分组
-  const coinsByExchange = {
-    binance: [],
-    okx: [],
-    bitget: [],
-    mexc: []
-  };
+  const coinsByExchange = { binance: [], okx: [], bitget: [], mexc: [] };
 
-  Object.keys(COINS).forEach(symbol => {
-    const coin = COINS[symbol];
+  coinsList.forEach(coin => {
     const source = coin.source || 'binance';
     if (coinsByExchange[source]) {
-      coinsByExchange[source].push({ symbol, ...coin });
+      coinsByExchange[source].push(coin);
     }
   });
 
-  // Binance - 单独WebSocket
   coinsByExchange.binance.forEach(coin => {
     connectBinanceWebSocket(coin.symbol, coin.tradingPair);
   });
 
-  // OKX - 单个WebSocket多订阅
   if (coinsByExchange.okx.length > 0) {
     connectOkxWebSocket(coinsByExchange.okx);
   }
 
-  // Bitget - 单个WebSocket多订阅
   if (coinsByExchange.bitget.length > 0) {
     connectBitgetWebSocket(coinsByExchange.bitget);
   }
 
-  // MEXC - REST API轮询
   if (coinsByExchange.mexc.length > 0) {
     startMexcPolling(coinsByExchange.mexc);
   }
@@ -150,7 +145,6 @@ function connectOkxWebSocket(coins) {
 
     ws.onopen = () => {
       console.log('OKX WebSocket已连接');
-      // 订阅所有代币
       const args = coins.map(coin => ({
         channel: 'tickers',
         instId: coin.tradingPair
@@ -164,7 +158,6 @@ function connectOkxWebSocket(coins) {
         if (response.data && response.data[0]) {
           const data = response.data[0];
           const instId = data.instId;
-          // 找到对应的币种
           const coin = coins.find(c => c.tradingPair === instId);
           if (coin) {
             priceData[coin.symbol] = {
@@ -203,7 +196,6 @@ function connectBitgetWebSocket(coins) {
 
     ws.onopen = () => {
       console.log('Bitget WebSocket已连接');
-      // 订阅所有代币
       const args = coins.map(coin => ({
         instType: 'SPOT',
         channel: 'ticker',
@@ -276,13 +268,13 @@ function renderCoinCards() {
   const coinsGrid = document.querySelector('.coins-grid');
   coinsGrid.innerHTML = '';
 
-  Object.keys(COINS).forEach(symbol => {
-    const coin = COINS[symbol];
+  coinsList.forEach(coin => {
     const card = document.createElement('div');
     card.className = 'coin-card';
-    card.id = `card-${symbol}`;
+    card.id = `card-${coin.symbol}`;
+    card.draggable = true;
+    card.dataset.symbol = coin.symbol;
 
-    // 非Binance代币显示交易所标识
     const sourceIndicator = coin.source !== 'binance'
       ? `<span class="source-indicator" title="${coin.source.toUpperCase()}">${EXCHANGE_ICONS[coin.source] || '📊'}</span>`
       : '';
@@ -293,16 +285,101 @@ function renderCoinCards() {
         <span class="coin-card-name">${coin.name}</span>
         ${sourceIndicator}
       </div>
-      <div class="coin-card-price" id="price-${symbol}">
+      <div class="coin-card-price" id="price-${coin.symbol}">
         <span class="coin-card-loading">加载中...</span>
       </div>
-      <div class="coin-card-change" id="change-${symbol}">
+      <div class="coin-card-change" id="change-${coin.symbol}">
         <span>--</span>
       </div>
     `;
 
-    card.addEventListener('click', () => openChart(symbol));
+    // 拖拽事件
+    card.addEventListener('dragstart', handleDragStart);
+    card.addEventListener('dragend', handleDragEnd);
+    card.addEventListener('dragover', handleDragOver);
+    card.addEventListener('dragenter', handleDragEnter);
+    card.addEventListener('dragleave', handleDragLeave);
+    card.addEventListener('drop', handleDrop);
+
+    // 点击事件（打开图表）
+    card.addEventListener('click', (e) => {
+      // 如果正在拖拽，不触发点击
+      if (!e.target.closest('.coin-card').classList.contains('dragging')) {
+        openChart(coin.symbol);
+      }
+    });
+
     coinsGrid.appendChild(card);
+  });
+}
+
+// ========== 拖拽排序 ==========
+function handleDragStart(e) {
+  draggedElement = this;
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', this.dataset.symbol);
+}
+
+function handleDragEnd(e) {
+  this.classList.remove('dragging');
+  document.querySelectorAll('.coin-card').forEach(card => {
+    card.classList.remove('drag-over');
+  });
+  draggedElement = null;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+  e.preventDefault();
+  if (this !== draggedElement) {
+    this.classList.add('drag-over');
+  }
+}
+
+function handleDragLeave(e) {
+  this.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (this === draggedElement) return;
+
+  this.classList.remove('drag-over');
+
+  const draggedSymbol = e.dataTransfer.getData('text/plain');
+  const targetSymbol = this.dataset.symbol;
+
+  // 找到索引
+  const draggedIndex = coinsList.findIndex(c => c.symbol === draggedSymbol);
+  const targetIndex = coinsList.findIndex(c => c.symbol === targetSymbol);
+
+  if (draggedIndex === -1 || targetIndex === -1) return;
+
+  // 交换位置
+  const [draggedCoin] = coinsList.splice(draggedIndex, 1);
+  coinsList.splice(targetIndex, 0, draggedCoin);
+
+  // 重新渲染
+  renderCoinCards();
+
+  // 保存顺序
+  saveCoinsOrder();
+
+  console.log('拖拽排序完成:', coinsList.map(c => c.symbol));
+}
+
+// 保存币种顺序
+function saveCoinsOrder() {
+  const order = coinsList.map(c => c.symbol);
+  chrome.storage.local.set({ [COINS_ORDER_KEY]: order }, () => {
+    console.log('币种顺序已保存:', order);
   });
 }
 
@@ -350,21 +427,51 @@ function formatPrice(price) {
 // ========== 加载自定义代币 ==========
 async function loadCustomCoins() {
   return new Promise((resolve) => {
-    chrome.storage.local.get([CUSTOM_COINS_KEY], function(result) {
+    chrome.storage.local.get([CUSTOM_COINS_KEY, COINS_ORDER_KEY], function(result) {
       const customCoins = result[CUSTOM_COINS_KEY] || [];
-      COINS = {...DEFAULT_COINS};
+      const savedOrder = result[COINS_ORDER_KEY] || [];
+
+      // 构建所有币种列表
+      const allCoins = [...DEFAULT_COINS_LIST];
 
       customCoins.forEach(coin => {
-        COINS[coin.symbol] = {
+        allCoins.push({
+          symbol: coin.symbol,
           name: coin.name,
           fullName: `${coin.source.toUpperCase()}: ${coin.tradingPair}`,
           icon: coin.icon || EXCHANGE_ICONS[coin.source] || '🪙',
           source: coin.source || 'binance',
           tradingPair: coin.tradingPair || coin.symbol
-        };
+        });
       });
 
-      console.log('加载的币种配置:', COINS);
+      // 根据保存的顺序排序
+      if (savedOrder.length > 0) {
+        coinsList = [];
+        // 先按保存的顺序添加
+        savedOrder.forEach(symbol => {
+          const coin = allCoins.find(c => c.symbol === symbol);
+          if (coin) {
+            coinsList.push(coin);
+          }
+        });
+        // 再添加新的币种（不在保存顺序中的）
+        allCoins.forEach(coin => {
+          if (!savedOrder.includes(coin.symbol)) {
+            coinsList.push(coin);
+          }
+        });
+      } else {
+        coinsList = allCoins;
+      }
+
+      // 构建映射
+      COINS = {};
+      coinsList.forEach(coin => {
+        COINS[coin.symbol] = coin;
+      });
+
+      console.log('加载的币种配置:', coinsList);
       resolve();
     });
   });
@@ -400,7 +507,6 @@ function loadTradingViewChart(symbol, coin) {
   const coinSymbol = coin.name.toUpperCase();
   const source = coin.source || 'binance';
 
-  // 根据交易所选择TradingView符号
   const exchangeMap = {
     binance: `BINANCE:${coinSymbol}USDT`,
     okx: `OKX:${coinSymbol}USDT`,
