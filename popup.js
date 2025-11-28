@@ -10,6 +10,7 @@ const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
 const COINS_ORDER_KEY = 'coinsOrder';
 const STOCKS_ORDER_KEY = 'stocksOrder';
+const TAB_VISIBILITY_KEY = 'tabVisibility';
 
 // ==================== 默认数据 ====================
 // 虚拟币
@@ -78,10 +79,34 @@ function switchTab(tab) {
   closeChart();
 }
 
+// 应用页签显示设置
+function applyTabVisibility(visibility) {
+  const tabs = ['crypto', 'stock', 'metal'];
+  let firstVisible = null;
+
+  tabs.forEach(tab => {
+    const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    const panel = document.getElementById(`panel-${tab}`);
+    const isVisible = visibility[tab] !== false;
+
+    if (btn) btn.style.display = isVisible ? '' : 'none';
+    if (panel && !isVisible) panel.classList.remove('active');
+
+    if (isVisible && !firstVisible) firstVisible = tab;
+  });
+
+  // 切换到第一个可见的页签
+  if (firstVisible && !visibility[currentTab]) {
+    switchTab(firstVisible);
+  } else if (firstVisible) {
+    switchTab(firstVisible);
+  }
+}
+
 // ==================== 加载数据 ====================
 async function loadAllData() {
   return new Promise(resolve => {
-    chrome.storage.local.get([CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, COINS_ORDER_KEY, STOCKS_ORDER_KEY], result => {
+    chrome.storage.local.get([CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, COINS_ORDER_KEY, STOCKS_ORDER_KEY, TAB_VISIBILITY_KEY], result => {
       // 虚拟币
       const customCoins = result[CUSTOM_COINS_KEY] || [];
       const coinsOrder = result[COINS_ORDER_KEY] || [];
@@ -94,6 +119,10 @@ async function loadAllData() {
 
       // 贵金属（固定）
       metalList = [...DEFAULT_METALS];
+
+      // 应用页签显示设置
+      const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, stock: true, metal: true };
+      applyTabVisibility(visibility);
 
       resolve();
     });
@@ -513,10 +542,10 @@ function updateSilverCard() {
   const changeEl = document.getElementById('change-XAGUSD');
   if (!priceEl || !changeEl) return;
 
-  // 显示格式：$国际价格 (¥估算价格/克)
+  // 显示格式：$国际价格，人民币价格放下面（跟黄金一样）
   let priceText = `$${formatPrice(data.price)}`;
   if (data.cnPrice) {
-    priceText += ` <span style="font-size:12px;color:rgba(255,255,255,0.7)">(≈¥${formatPrice(data.cnPrice)}/克)</span>`;
+    priceText += `<br><span style="font-size:12px;color:rgba(255,255,255,0.7)">(¥${formatPrice(data.cnPrice)}/克)</span>`;
   }
   priceEl.innerHTML = priceText;
 

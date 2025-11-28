@@ -2,6 +2,7 @@
 const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
 const API_APPCODE_KEY = 'metalApiAppCode';
+const TAB_VISIBILITY_KEY = 'tabVisibility';
 
 // 随机图标池
 const RANDOM_ICONS = [
@@ -110,11 +111,18 @@ document.addEventListener('DOMContentLoaded', function() {
   loadCustomCoins();
   loadCustomStocks();
   loadApiConfig();
+  loadTabVisibility();
 
   // 绑定保存API配置按钮
   const saveApiBtn = document.getElementById('saveApiBtn');
   if (saveApiBtn) {
     saveApiBtn.addEventListener('click', saveApiConfig);
+  }
+
+  // 绑定保存页签设置按钮
+  const saveTabsBtn = document.getElementById('saveTabsBtn');
+  if (saveTabsBtn) {
+    saveTabsBtn.addEventListener('click', saveTabVisibility);
   }
 
   // 绑定添加代币按钮事件
@@ -665,6 +673,50 @@ function saveApiConfig() {
     status.innerHTML = '✅ 已配置AppCode';
     status.style.color = '#4CAF50';
 
+    setTimeout(() => {
+      successMsg.classList.remove('show');
+    }, 3000);
+  });
+}
+
+// ==================== 页签显示设置 ====================
+
+// 加载页签显示设置
+function loadTabVisibility() {
+  chrome.storage.local.get([TAB_VISIBILITY_KEY], function(result) {
+    const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, stock: true, metal: true };
+
+    const cryptoCheckbox = document.getElementById('showCrypto');
+    const stockCheckbox = document.getElementById('showStock');
+    const metalCheckbox = document.getElementById('showMetal');
+
+    if (cryptoCheckbox) cryptoCheckbox.checked = visibility.crypto !== false;
+    if (stockCheckbox) stockCheckbox.checked = visibility.stock !== false;
+    if (metalCheckbox) metalCheckbox.checked = visibility.metal !== false;
+  });
+}
+
+// 保存页签显示设置
+function saveTabVisibility() {
+  const cryptoCheckbox = document.getElementById('showCrypto');
+  const stockCheckbox = document.getElementById('showStock');
+  const metalCheckbox = document.getElementById('showMetal');
+  const successMsg = document.getElementById('tabsSuccessMessage');
+
+  const visibility = {
+    crypto: cryptoCheckbox.checked,
+    stock: stockCheckbox.checked,
+    metal: metalCheckbox.checked
+  };
+
+  // 至少选择一个
+  if (!visibility.crypto && !visibility.stock && !visibility.metal) {
+    alert('至少需要选择一个页签显示');
+    return;
+  }
+
+  chrome.storage.local.set({ [TAB_VISIBILITY_KEY]: visibility }, function() {
+    successMsg.classList.add('show');
     setTimeout(() => {
       successMsg.classList.remove('show');
     }, 3000);
