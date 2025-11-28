@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "多币种价格追踪器",
-  "version": "3.3.0",
-  "description": "WebSocket实时追踪BTC、ETH、SOL等加密货币价格，所有数据实时更新，延迟<1秒，支持TradingView K线图",
+  "name": "多资产价格追踪器",
+  "version": "3.4.0",
+  "description": "实时追踪虚拟币、股市、贵金属价格，支持TradingView K线图，多交易所数据源",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -24,7 +24,9 @@
     "https://api.binance.com/*",
     "https://www.okx.com/*",
     "https://api.bitget.com/*",
-    "https://api.mexc.com/*"
+    "https://api.mexc.com/*",
+    "https://qt.gtimg.cn/*",
+    "https://api.exchangerate-api.com/*"
   ],
   "background": {
     "service_worker": "background.js"
