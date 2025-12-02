@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>设置 - 多币种追踪器</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 650px;
+      min-height: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color: #fff;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .close-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      padding: 8px 16px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .close-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .section {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      backdrop-filter: blur(10px);
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 15px;
+    }
+
+    .default-coins {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .coin-item {
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .coin-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .coin-symbol {
+      font-weight: 600;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .coin-full-name {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    /* 数据源选择样式 */
+    .data-source-section {
+      margin-bottom: 15px;
+    }
+
+    .section-label {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 10px;
+      opacity: 0.9;
+    }
+
+    .radio-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .radio-item {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .radio-item:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .radio-item input[type="radio"] {
+      margin-right: 8px;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .radio-item input[type="radio"]:checked + .radio-label {
+      color: #4CAF50;
+    }
+
+    .radio-item:has(input:checked) {
+      border-color: #4CAF50;
+      background: rgba(76, 175, 80, 0.1);
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+    }
+
+    .radio-icon {
+      font-size: 14px;
+    }
+
+    .add-coin-form {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .input-group {
+      flex: 1;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 5px;
+      opacity: 0.8;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    input:focus {
+      border-color: #4CAF50;
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .add-btn {
+      background: #4CAF50;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+      align-self: flex-end;
+      transition: all 0.3s;
+      min-width: 80px;
+    }
+
+    .add-btn:hover {
+      background: #45a049;
+      transform: translateY(-2px);
+    }
+
+    .add-btn:disabled {
+      background: #666;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .add-btn.loading {
+      position: relative;
+      color: transparent;
+    }
+
+    .add-btn.loading::after {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      top: 50%;
+      left: 50%;
+      margin-left: -8px;
+      margin-top: -8px;
+      border: 2px solid #fff;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .custom-coins-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .custom-coin-item {
+      background: rgba(76, 175, 80, 0.1);
+      border: 2px solid rgba(76, 175, 80, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .remove-btn {
+      background: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.4);
+      border-radius: 4px;
+      padding: 6px 12px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.3s;
+    }
+
+    .remove-btn:hover {
+      background: rgba(244, 67, 54, 0.4);
+    }
+
+    .info-text {
+      font-size: 13px;
+      opacity: 0.7;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .success-message, .error-message {
+      border-radius: 6px;
+      padding: 12px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    .success-message {
+      background: rgba(76, 175, 80, 0.2);
+      border: 1px solid rgba(76, 175, 80, 0.4);
+    }
+
+    .error-message {
+      background: rgba(244, 67, 54, 0.2);
+      border: 1px solid rgba(244, 67, 54, 0.4);
+    }
+
+    .success-message.show, .error-message.show {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      opacity: 0.5;
+    }
+
+    /* 数据源标签样式 */
+    .source-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+
+    .source-badge.binance {
+      background: rgba(243, 186, 47, 0.3);
+      color: #f3ba2f;
+    }
+
+    .source-badge.okx {
+      background: rgba(255, 255, 255, 0.3);
+      color: #fff;
+    }
+
+    .source-badge.bitget {
+      background: rgba(0, 217, 126, 0.3);
+      color: #00d97e;
+    }
+
+    .source-badge.mexc {
+      background: rgba(55, 114, 255, 0.3);
+      color: #3772ff;
+    }
+
+    .source-badge.cn {
+      background: rgba(255, 59, 48, 0.3);
+      color: #ff3b30;
+    }
+
+    .source-badge.hk {
+      background: rgba(255, 149, 0, 0.3);
+      color: #ff9500;
+    }
+
+    .source-badge.us {
+      background: rgba(52, 199, 89, 0.3);
+      color: #34c759;
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 15px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .checkbox-item:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+
+    .checkbox-item:has(input:checked) {
+      border-color: #4CAF50;
+      background: rgba(76, 175, 80, 0.1);
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      margin-right: 8px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .checkbox-label {
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>资产设置</h1>
+    <button class="close-btn" id="closeBtn">关闭</button>
+  </div>
+
+  <!-- API配置 -->
+  <div class="section">
+    <div class="section-title">🔑 贵金属API配置</div>
+    <div class="info-text" style="margin-bottom:15px;">
+      配置阿里云贵金属API的AppCode，用于获取黄金白银实时价格。<br>
+      <a href="https://market.aliyun.com/products/57000002/cmapi00062498.html" target="_blank" style="color:#4CAF50;">获取AppCode →</a>
+    </div>
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>AppCode</label>
+        <input type="password" id="apiAppCode" placeholder="输入你的AppCode" maxlength="50">
+      </div>
+      <button class="add-btn" id="saveApiBtn">保存</button>
+    </div>
+    <div class="success-message" id="apiSuccessMessage">
+      ✅ AppCode 保存成功！
+    </div>
+    <div id="apiStatus" class="info-text" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- 页签显示设置 -->
+  <div class="section">
+    <div class="section-title">📑 页签显示设置</div>
+    <div class="info-text" style="margin-bottom:15px;">
+      选择要在主界面显示的页签
+    </div>
+    <div class="checkbox-group">
+      <label class="checkbox-item">
+        <input type="checkbox" id="showCrypto" checked>
+        <span class="checkbox-label">💰 虚拟币</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="showStock" checked>
+        <span class="checkbox-label">📈 股市</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="showMetal" checked>
+        <span class="checkbox-label">🥇 贵金属</span>
+      </label>
+    </div>
+    <button class="add-btn" id="saveTabsBtn" style="margin-top:15px;">保存设置</button>
+    <div class="success-message" id="tabsSuccessMessage">
+      ✅ 页签设置保存成功！
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">默认币种</div>
+    <div class="default-coins">
+      <div class="coin-item">
+        <div class="coin-info">
+          <div class="coin-symbol">BTC</div>
+          <div class="coin-full-name">Bitcoin</div>
+        </div>
+      </div>
+      <div class="coin-item">
+        <div class="coin-info">
+          <div class="coin-symbol">ETH</div>
+          <div class="coin-full-name">Ethereum</div>
+        </div>
+      </div>
+      <div class="coin-item">
+        <div class="coin-info">
+          <div class="coin-symbol">SOL</div>
+          <div class="coin-full-name">Solana</div>
+        </div>
+      </div>
+      <div class="coin-item">
+        <div class="coin-info">
+          <div class="coin-symbol">BNB</div>
+          <div class="coin-full-name">Binance</div>
+        </div>
+      </div>
+      <div class="coin-item">
+        <div class="coin-info">
+          <div class="coin-symbol">XRP</div>
+          <div class="coin-full-name">Ripple</div>
+        </div>
+      </div>
+      <div class="coin-item">
+        <div class="coin-info">
+          <div class="coin-symbol">ADA</div>
+          <div class="coin-full-name">Cardano</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">添加自定义代币</div>
+
+    <!-- 数据源选择 -->
+    <div class="data-source-section">
+      <label class="section-label">选择交易所</label>
+      <div class="radio-group">
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="binance" checked>
+          <span class="radio-label">
+            <span class="radio-icon">🔶</span>
+            Binance
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="okx">
+          <span class="radio-label">
+            <span class="radio-icon">⚫</span>
+            OKX
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="bitget">
+          <span class="radio-label">
+            <span class="radio-icon">🟢</span>
+            Bitget
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="dataSource" value="mexc">
+          <span class="radio-label">
+            <span class="radio-icon">🔵</span>
+            MEXC
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 添加表单 -->
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>代币符号</label>
+        <input type="text" id="coinSymbol" placeholder="如：OKB、PEPE" maxlength="15">
+      </div>
+      <button class="add-btn" id="addBtn">添加</button>
+    </div>
+
+    <div class="info-text" id="infoText">
+      💡 系统会自动验证该代币在所选交易所是否存在，支持实时WebSocket推送。
+    </div>
+
+    <div class="success-message" id="successMessage">
+      ✅ 代币添加成功！请返回主界面查看。
+    </div>
+
+    <div class="error-message" id="errorMessage">
+      ❌ <span id="errorText"></span>
+    </div>
+
+    <div class="section-title" style="margin-top: 20px;">我的自定义代币</div>
+    <div class="custom-coins-list" id="customCoinsList">
+      <div class="empty-state">暂无自定义代币</div>
+    </div>
+  </div>
+
+  <!-- 股票设置区域 -->
+  <div class="section">
+    <div class="section-title">📈 股市设置</div>
+
+    <div class="data-source-section">
+      <label class="section-label">选择市场</label>
+      <div class="radio-group">
+        <label class="radio-item">
+          <input type="radio" name="stockMarket" value="cn" checked>
+          <span class="radio-label">
+            <span class="radio-icon">🇨🇳</span>
+            A股
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="stockMarket" value="hk">
+          <span class="radio-label">
+            <span class="radio-icon">🇭🇰</span>
+            港股
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="stockMarket" value="us">
+          <span class="radio-label">
+            <span class="radio-icon">🇺🇸</span>
+            美股
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>股票代码</label>
+        <input type="text" id="stockCode" placeholder="如：600519、00700、AAPL" maxlength="10">
+      </div>
+      <button class="add-btn" id="addStockBtn">添加</button>
+    </div>
+
+    <div class="info-text">
+      💡 A股格式：600519（上证）或 000001（深证）<br>
+      💡 港股格式：00700（腾讯）<br>
+      💡 美股格式：AAPL（苹果）
+    </div>
+
+    <div class="success-message" id="stockSuccessMessage">
+      ✅ 股票添加成功！请返回主界面查看。
+    </div>
+
+    <div class="error-message" id="stockErrorMessage">
+      ❌ <span id="stockErrorText"></span>
+    </div>
+
+    <div class="section-title" style="margin-top: 20px;">我的股票</div>
+    <div class="custom-coins-list" id="customStocksList">
+      <div class="empty-state">暂无自定义股票</div>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

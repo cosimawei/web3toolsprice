@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>图标生成器</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: #1e3c72;
+      font-family: Arial, sans-serif;
+      color: #fff;
+    }
+    canvas {
+      border: 2px solid #fff;
+      margin: 20px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .instructions {
+      max-width: 600px;
+      text-align: center;
+      margin: 20px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <h1>多币种追踪器 - 图标生成器</h1>
+  <div class="instructions">
+    <p>点击下面的按钮生成不同尺寸的图标，然后保存到 icons 文件夹中</p>
+  </div>
+
+  <canvas id="canvas16" width="16" height="16"></canvas>
+  <button id="btn16">下载 16x16 图标</button>
+
+  <canvas id="canvas48" width="48" height="48"></canvas>
+  <button id="btn48">下载 48x48 图标</button>
+
+  <canvas id="canvas128" width="128" height="128"></canvas>
+  <button id="btn128">下载 128x128 图标</button>
+
+  <script>
+    function drawIcon(size) {
+      const canvas = document.getElementById(`canvas${size}`);
+      const ctx = canvas.getContext('2d');
+
+      // 背景渐变
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#4CAF50');
+      gradient.addColorStop(1, '#2196F3');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+
+      // 绘制比特币符号
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${size * 0.6}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('₿', size / 2, size / 2);
+    }
+
+    function downloadIcon(size) {
+      const canvas = document.getElementById(`canvas${size}`);
+      const link = document.createElement('a');
+      link.download = `icon${size}.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+
+    // 绘制所有尺寸的图标
+    drawIcon(16);
+    drawIcon(48);
+    drawIcon(128);
+
+    // 添加事件监听器
+    document.getElementById('btn16').addEventListener('click', function() {
+      downloadIcon(16);
+    });
+    document.getElementById('btn48').addEventListener('click', function() {
+      downloadIcon(48);
+    });
+    document.getElementById('btn128').addEventListener('click', function() {
+      downloadIcon(128);
+    });
+  </script>
+</body>
+</html>

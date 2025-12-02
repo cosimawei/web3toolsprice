@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多资产价格追踪</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>多资产价格追踪</h1>
+      <div class="controls">
+        <button id="tradingviewBtn" class="icon-btn" title="打开TradingView">📈</button>
+        <button id="settingsBtn" class="icon-btn" title="设置">⚙️</button>
+        <button id="refreshBtn" class="icon-btn" title="刷新">🔄</button>
+      </div>
+    </div>
+
+    <!-- Tab 切换 -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="crypto">🪙 虚拟币</button>
+      <button class="tab-btn" data-tab="stock">📈 股市</button>
+      <button class="tab-btn" data-tab="metal">🥇 贵金属</button>
+    </div>
+
+    <!-- 虚拟币面板 -->
+    <div class="tab-panel active" id="panel-crypto">
+      <div class="coins-grid" id="crypto-grid"></div>
+    </div>
+
+    <!-- A股面板 -->
+    <div class="tab-panel" id="panel-stock">
+      <div class="coins-grid" id="stock-grid"></div>
+    </div>
+
+    <!-- 贵金属面板 -->
+    <div class="tab-panel" id="panel-metal">
+      <div class="coins-grid" id="metal-grid"></div>
+    </div>
+
+    <!-- K线图展开区域 -->
+    <div class="chart-section" id="chartSection">
+      <div class="chart-header">
+        <div class="chart-title">
+          <span id="chartCoinName">BTC/USDT</span>
+          <span class="chart-subtitle">实时K线图</span>
+        </div>
+        <button class="chart-close" id="closeChart">收起 ▲</button>
+      </div>
+      <div class="chart-wrapper">
+        <div id="tradingview-chart"></div>
+      </div>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
