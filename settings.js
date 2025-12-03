@@ -722,3 +722,143 @@ function saveTabVisibility() {
     }, 3000);
   });
 }
+
+// ==================== 配置导入导出 ====================
+
+const COINS_ORDER_KEY = 'coinsOrder';
+const STOCKS_ORDER_KEY = 'stocksOrder';
+
+// 初始化导入导出按钮
+document.addEventListener('DOMContentLoaded', function() {
+  // 导出按钮
+  const exportBtn = document.getElementById('exportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', exportConfig);
+  }
+
+  // 导入按钮 - 点击触发文件选择
+  const importBtn = document.getElementById('importBtn');
+  const importFile = document.getElementById('importFile');
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', function() {
+      importFile.click();
+    });
+    importFile.addEventListener('change', importConfig);
+  }
+});
+
+// 导出配置
+function exportConfig() {
+  chrome.storage.local.get([
+    CUSTOM_COINS_KEY,
+    CUSTOM_STOCKS_KEY,
+    COINS_ORDER_KEY,
+    STOCKS_ORDER_KEY,
+    TAB_VISIBILITY_KEY,
+    API_APPCODE_KEY
+  ], function(result) {
+    const config = {
+      version: '1.0',
+      exportTime: new Date().toISOString(),
+      data: {
+        customCoins: result[CUSTOM_COINS_KEY] || [],
+        customStocks: result[CUSTOM_STOCKS_KEY] || [],
+        coinsOrder: result[COINS_ORDER_KEY] || [],
+        stocksOrder: result[STOCKS_ORDER_KEY] || [],
+        tabVisibility: result[TAB_VISIBILITY_KEY] || { crypto: true, stock: true, metal: true },
+        metalApiAppCode: result[API_APPCODE_KEY] || ''
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'crypto-tracker-config-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showBackupSuccess('配置已导出');
+  });
+}
+
+// 导入配置
+function importConfig(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const config = JSON.parse(e.target.result);
+
+      if (!config.data) {
+        showBackupError('无效的配置文件格式');
+        return;
+      }
+
+      const coinCount = (config.data.customCoins || []).length;
+      const stockCount = (config.data.customStocks || []).length;
+      const msg = '确定要导入配置吗？\n\n将导入：\n- ' + coinCount + ' 个自定义代币\n- ' + stockCount + ' 个自定义股票\n- 页签显示设置\n- 排序设置\n\n注意：这将覆盖当前的所有设置！';
+
+      if (!confirm(msg)) {
+        event.target.value = '';
+        return;
+      }
+
+      const saveData = {};
+      if (config.data.customCoins) saveData[CUSTOM_COINS_KEY] = config.data.customCoins;
+      if (config.data.customStocks) saveData[CUSTOM_STOCKS_KEY] = config.data.customStocks;
+      if (config.data.coinsOrder) saveData[COINS_ORDER_KEY] = config.data.coinsOrder;
+      if (config.data.stocksOrder) saveData[STOCKS_ORDER_KEY] = config.data.stocksOrder;
+      if (config.data.tabVisibility) saveData[TAB_VISIBILITY_KEY] = config.data.tabVisibility;
+      if (config.data.metalApiAppCode) saveData[API_APPCODE_KEY] = config.data.metalApiAppCode;
+
+      chrome.storage.local.set(saveData, function() {
+        if (chrome.runtime.lastError) {
+          showBackupError('导入失败：' + chrome.runtime.lastError.message);
+          return;
+        }
+
+        showBackupSuccess('配置导入成功！页面将刷新...');
+        setTimeout(function() { location.reload(); }, 1500);
+      });
+
+    } catch (err) {
+      showBackupError('配置文件解析失败：' + err.message);
+    }
+  };
+
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// 显示备份成功消息
+function showBackupSuccess(message) {
+  const successMsg = document.getElementById('backupSuccessMessage');
+  const successText = document.getElementById('backupSuccessText');
+  const errorMsg = document.getElementById('backupErrorMessage');
+
+  if (errorMsg) errorMsg.classList.remove('show');
+  if (successText) successText.textContent = message;
+  if (successMsg) {
+    successMsg.classList.add('show');
+    setTimeout(function() { successMsg.classList.remove('show'); }, 3000);
+  }
+}
+
+// 显示备份错误消息
+function showBackupError(message) {
+  const errorMsg = document.getElementById('backupErrorMessage');
+  const errorText = document.getElementById('backupErrorText');
+  const successMsg = document.getElementById('backupSuccessMessage');
+
+  if (successMsg) successMsg.classList.remove('show');
+  if (errorText) errorText.textContent = message;
+  if (errorMsg) {
+    errorMsg.classList.add('show');
+    setTimeout(function() { errorMsg.classList.remove('show'); }, 5000);
+  }
+}
