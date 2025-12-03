@@ -1,6 +1,7 @@
 // 存储键名
 const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
+const CUSTOM_ALPHA_KEY = 'customAlpha';
 const API_APPCODE_KEY = 'metalApiAppCode';
 const TAB_VISIBILITY_KEY = 'tabVisibility';
 
@@ -253,9 +254,12 @@ async function addCoin() {
   const errorMessage = document.getElementById('errorMessage');
   const errorText = document.getElementById('errorText');
 
-  const symbol = symbolInput.value.trim().toUpperCase();
   const exchange = getSelectedExchange();
   const config = EXCHANGES[exchange];
+  // Alpha代币支持中文，不转大写；其他交易所转大写
+  const symbol = exchange === 'binance_alpha'
+    ? symbolInput.value.trim()
+    : symbolInput.value.trim().toUpperCase();
 
   // 隐藏之前的消息
   hideMessages();
@@ -266,8 +270,8 @@ async function addCoin() {
     return;
   }
 
-  // 检查格式
-  if (!/^[A-Z0-9]+$/.test(symbol)) {
+  // 检查格式 - Alpha代币允许中文和其他字符
+  if (exchange !== 'binance_alpha' && !/^[A-Z0-9]+$/.test(symbol)) {
     showError('代币符号只能包含字母和数字');
     return;
   }
@@ -295,15 +299,18 @@ async function addCoin() {
     // Alpha验证返回对象包含tokenId
     const tokenId = (exists && exists.tokenId) ? exists.tokenId : null;
 
-    chrome.storage.local.get([CUSTOM_COINS_KEY], function(result) {
-      const customCoins = result[CUSTOM_COINS_KEY] || [];
+    // Alpha代币使用单独的存储键
+    const storageKey = exchange === 'binance_alpha' ? CUSTOM_ALPHA_KEY : CUSTOM_COINS_KEY;
+
+    chrome.storage.local.get([storageKey], function(result) {
+      const customList = result[storageKey] || [];
 
       // 生成唯一key - Alpha代币使用tokenId
       const tradingPair = config.getTradingPair(symbol, tokenId);
       const coinKey = exchange === 'binance' ? tradingPair : `${exchange.toUpperCase()}_${tradingPair.replace('-', '')}`;
 
       // 检查是否已存在
-      if (customCoins.some(coin => coin.symbol === coinKey)) {
+      if (customList.some(coin => coin.symbol === coinKey)) {
         showError('该代币已存在');
         addBtn.classList.remove('loading');
         addBtn.disabled = false;
@@ -320,10 +327,10 @@ async function addCoin() {
         tokenId: tokenId // Alpha代币保存tokenId
       };
 
-      customCoins.push(newCoin);
+      customList.push(newCoin);
 
       // 保存到 Chrome Storage
-      chrome.storage.local.set({ [CUSTOM_COINS_KEY]: customCoins }, function() {
+      chrome.storage.local.set({ [storageKey]: customList }, function() {
         if (chrome.runtime.lastError) {
           showError('保存失败：' + chrome.runtime.lastError.message);
           addBtn.classList.remove('loading');
@@ -706,13 +713,15 @@ function saveApiConfig() {
 // 加载页签显示设置
 function loadTabVisibility() {
   chrome.storage.local.get([TAB_VISIBILITY_KEY], function(result) {
-    const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, stock: true, metal: true };
+    const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, stock: true, metal: true };
 
     const cryptoCheckbox = document.getElementById('showCrypto');
+    const alphaCheckbox = document.getElementById('showAlpha');
     const stockCheckbox = document.getElementById('showStock');
     const metalCheckbox = document.getElementById('showMetal');
 
     if (cryptoCheckbox) cryptoCheckbox.checked = visibility.crypto !== false;
+    if (alphaCheckbox) alphaCheckbox.checked = visibility.alpha !== false;
     if (stockCheckbox) stockCheckbox.checked = visibility.stock !== false;
     if (metalCheckbox) metalCheckbox.checked = visibility.metal !== false;
   });
@@ -721,18 +730,20 @@ function loadTabVisibility() {
 // 保存页签显示设置
 function saveTabVisibility() {
   const cryptoCheckbox = document.getElementById('showCrypto');
+  const alphaCheckbox = document.getElementById('showAlpha');
   const stockCheckbox = document.getElementById('showStock');
   const metalCheckbox = document.getElementById('showMetal');
   const successMsg = document.getElementById('tabsSuccessMessage');
 
   const visibility = {
     crypto: cryptoCheckbox.checked,
+    alpha: alphaCheckbox.checked,
     stock: stockCheckbox.checked,
     metal: metalCheckbox.checked
   };
 
   // 至少选择一个
-  if (!visibility.crypto && !visibility.stock && !visibility.metal) {
+  if (!visibility.crypto && !visibility.alpha && !visibility.stock && !visibility.metal) {
     alert('至少需要选择一个页签显示');
     return;
   }
@@ -749,6 +760,7 @@ function saveTabVisibility() {
 
 const COINS_ORDER_KEY = 'coinsOrder';
 const STOCKS_ORDER_KEY = 'stocksOrder';
+const ALPHA_ORDER_KEY = 'alphaOrder';
 
 // 初始化导入导出按钮
 document.addEventListener('DOMContentLoaded', function() {
@@ -774,20 +786,24 @@ function exportConfig() {
   chrome.storage.local.get([
     CUSTOM_COINS_KEY,
     CUSTOM_STOCKS_KEY,
+    CUSTOM_ALPHA_KEY,
     COINS_ORDER_KEY,
     STOCKS_ORDER_KEY,
+    ALPHA_ORDER_KEY,
     TAB_VISIBILITY_KEY,
     API_APPCODE_KEY
   ], function(result) {
     const config = {
-      version: '1.0',
+      version: '1.1',
       exportTime: new Date().toISOString(),
       data: {
         customCoins: result[CUSTOM_COINS_KEY] || [],
         customStocks: result[CUSTOM_STOCKS_KEY] || [],
+        customAlpha: result[CUSTOM_ALPHA_KEY] || [],
         coinsOrder: result[COINS_ORDER_KEY] || [],
         stocksOrder: result[STOCKS_ORDER_KEY] || [],
-        tabVisibility: result[TAB_VISIBILITY_KEY] || { crypto: true, stock: true, metal: true },
+        alphaOrder: result[ALPHA_ORDER_KEY] || [],
+        tabVisibility: result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, stock: true, metal: true },
         metalApiAppCode: result[API_APPCODE_KEY] || ''
       }
     };
@@ -823,7 +839,8 @@ function importConfig(event) {
 
       const coinCount = (config.data.customCoins || []).length;
       const stockCount = (config.data.customStocks || []).length;
-      const msg = '确定要导入配置吗？\n\n将导入：\n- ' + coinCount + ' 个自定义代币\n- ' + stockCount + ' 个自定义股票\n- 页签显示设置\n- 排序设置\n\n注意：这将覆盖当前的所有设置！';
+      const alphaCount = (config.data.customAlpha || []).length;
+      const msg = '确定要导入配置吗？\n\n将导入：\n- ' + coinCount + ' 个自定义代币\n- ' + alphaCount + ' 个Alpha代币\n- ' + stockCount + ' 个自定义股票\n- 页签显示设置\n- 排序设置\n\n注意：这将覆盖当前的所有设置！';
 
       if (!confirm(msg)) {
         event.target.value = '';
@@ -833,8 +850,10 @@ function importConfig(event) {
       const saveData = {};
       if (config.data.customCoins) saveData[CUSTOM_COINS_KEY] = config.data.customCoins;
       if (config.data.customStocks) saveData[CUSTOM_STOCKS_KEY] = config.data.customStocks;
+      if (config.data.customAlpha) saveData[CUSTOM_ALPHA_KEY] = config.data.customAlpha;
       if (config.data.coinsOrder) saveData[COINS_ORDER_KEY] = config.data.coinsOrder;
       if (config.data.stocksOrder) saveData[STOCKS_ORDER_KEY] = config.data.stocksOrder;
+      if (config.data.alphaOrder) saveData[ALPHA_ORDER_KEY] = config.data.alphaOrder;
       if (config.data.tabVisibility) saveData[TAB_VISIBILITY_KEY] = config.data.tabVisibility;
       if (config.data.metalApiAppCode) saveData[API_APPCODE_KEY] = config.data.metalApiAppCode;
 

@@ -8,8 +8,10 @@ let currentTab = 'crypto';
 // ==================== 存储键 ====================
 const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
+const CUSTOM_ALPHA_KEY = 'customAlpha';
 const COINS_ORDER_KEY = 'coinsOrder';
 const STOCKS_ORDER_KEY = 'stocksOrder';
+const ALPHA_ORDER_KEY = 'alphaOrder';
 const TAB_VISIBILITY_KEY = 'tabVisibility';
 
 // ==================== 默认数据 ====================
@@ -37,6 +39,7 @@ const DEFAULT_METALS = [
 
 // 数据列表
 let cryptoList = [];
+let alphaList = [];
 let stockList = [];
 let metalList = [...DEFAULT_METALS];
 
@@ -85,7 +88,7 @@ function switchTab(tab) {
 
 // 应用页签显示设置
 function applyTabVisibility(visibility) {
-  const tabs = ['crypto', 'stock', 'metal'];
+  const tabs = ['crypto', 'alpha', 'stock', 'metal'];
   let firstVisible = null;
 
   tabs.forEach(tab => {
@@ -110,11 +113,16 @@ function applyTabVisibility(visibility) {
 // ==================== 加载数据 ====================
 async function loadAllData() {
   return new Promise(resolve => {
-    chrome.storage.local.get([CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, COINS_ORDER_KEY, STOCKS_ORDER_KEY, TAB_VISIBILITY_KEY], result => {
-      // 虚拟币
-      const customCoins = result[CUSTOM_COINS_KEY] || [];
+    chrome.storage.local.get([CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, CUSTOM_ALPHA_KEY, COINS_ORDER_KEY, STOCKS_ORDER_KEY, ALPHA_ORDER_KEY, TAB_VISIBILITY_KEY], result => {
+      // 虚拟币（排除Alpha代币）
+      const customCoins = (result[CUSTOM_COINS_KEY] || []).filter(c => c.source !== 'binance_alpha');
       const coinsOrder = result[COINS_ORDER_KEY] || [];
       cryptoList = buildOrderedList(DEFAULT_CRYPTO, customCoins, coinsOrder, 'crypto');
+
+      // Alpha代币
+      const customAlpha = result[CUSTOM_ALPHA_KEY] || [];
+      const alphaOrder = result[ALPHA_ORDER_KEY] || [];
+      alphaList = buildOrderedList([], customAlpha, alphaOrder, 'alpha');
 
       // 股市
       const customStocks = result[CUSTOM_STOCKS_KEY] || [];
@@ -125,7 +133,7 @@ async function loadAllData() {
       metalList = [...DEFAULT_METALS];
 
       // 应用页签显示设置
-      const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, stock: true, metal: true };
+      const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, stock: true, metal: true };
       applyTabVisibility(visibility);
 
       resolve();
@@ -143,6 +151,7 @@ function buildOrderedList(defaults, customs, order, type) {
       icon: item.icon || '📊',
       source: item.source || 'binance',
       tradingPair: item.tradingPair || item.symbol,
+      tokenId: item.tokenId || null,
       type: type
     });
   });
@@ -164,6 +173,7 @@ function buildOrderedList(defaults, customs, order, type) {
 // ==================== 渲染 ====================
 function renderAllPanels() {
   renderPanel('crypto-grid', cryptoList);
+  renderPanel('alpha-grid', alphaList);
   renderPanel('stock-grid', stockList);
   renderPanel('metal-grid', metalList);
 }
@@ -229,6 +239,8 @@ function connectAll() {
   console.log('connectAll 被调用');
   // 虚拟币
   connectCrypto();
+  // Alpha代币
+  if (alphaList.length > 0) startAlphaPolling();
   // 股票
   if (stockList.length > 0) fetchStockPrices();
   // 贵金属
@@ -254,7 +266,7 @@ function closeAllConnections() {
 
 // ==================== 虚拟币连接 ====================
 function connectCrypto() {
-  const byExchange = { binance: [], binance_alpha: [], okx: [], bitget: [], mexc: [] };
+  const byExchange = { binance: [], okx: [], bitget: [], mexc: [] };
 
   cryptoList.forEach(coin => {
     const src = coin.source || 'binance';
@@ -262,7 +274,6 @@ function connectCrypto() {
   });
 
   byExchange.binance.forEach(c => connectBinanceWS(c));
-  if (byExchange.binance_alpha.length > 0) startAlphaPolling(byExchange.binance_alpha);
   if (byExchange.okx.length > 0) connectOkxWS(byExchange.okx);
   if (byExchange.bitget.length > 0) connectBitgetWS(byExchange.bitget);
   if (byExchange.mexc.length > 0) startMexcPolling(byExchange.mexc);
@@ -350,7 +361,7 @@ function startMexcPolling(coins) {
 }
 
 // Binance Alpha代币轮询
-function startAlphaPolling(coins) {
+function startAlphaPolling() {
   const fetchAlpha = async () => {
     try {
       // 获取Alpha token列表（包含价格信息）
@@ -358,7 +369,7 @@ function startAlphaPolling(coins) {
       if (r.ok) {
         const data = await r.json();
         if (data && data.data && Array.isArray(data.data)) {
-          for (const c of coins) {
+          for (const c of alphaList) {
             // 通过tokenId或symbol匹配
             const token = data.data.find(t => {
               if (c.tokenId && t.id === c.tokenId) return true;
@@ -648,7 +659,12 @@ function handleDrop(e) {
   const targetSym = this.dataset.symbol;
   const type = this.dataset.type;
 
-  let list = type === 'crypto' ? cryptoList : type === 'stock' ? stockList : metalList;
+  let list;
+  if (type === 'crypto') list = cryptoList;
+  else if (type === 'alpha') list = alphaList;
+  else if (type === 'stock') list = stockList;
+  else list = metalList;
+
   const dragIdx = list.findIndex(i => i.symbol === dragSym);
   const targetIdx = list.findIndex(i => i.symbol === targetSym);
 
@@ -657,11 +673,18 @@ function handleDrop(e) {
   const [item] = list.splice(dragIdx, 1);
   list.splice(targetIdx, 0, item);
 
-  const gridId = type === 'crypto' ? 'crypto-grid' : type === 'stock' ? 'stock-grid' : 'metal-grid';
+  let gridId;
+  if (type === 'crypto') gridId = 'crypto-grid';
+  else if (type === 'alpha') gridId = 'alpha-grid';
+  else if (type === 'stock') gridId = 'stock-grid';
+  else gridId = 'metal-grid';
   renderPanel(gridId, list);
 
   // 保存顺序
-  const orderKey = type === 'crypto' ? COINS_ORDER_KEY : type === 'stock' ? STOCKS_ORDER_KEY : null;
+  let orderKey;
+  if (type === 'crypto') orderKey = COINS_ORDER_KEY;
+  else if (type === 'alpha') orderKey = ALPHA_ORDER_KEY;
+  else if (type === 'stock') orderKey = STOCKS_ORDER_KEY;
   if (orderKey) {
     chrome.storage.local.set({ [orderKey]: list.map(i => i.symbol) });
   }
@@ -679,7 +702,39 @@ function openChart(item) {
   const iframe = document.createElement('iframe');
   iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
 
-  if (item.type === 'crypto') {
+  if (item.type === 'alpha') {
+    // Alpha代币使用Binance Alpha K线API，通过debot.ai查看
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
+        <p style="color:#fff;margin-bottom:20px;font-size:14px;">Alpha代币K线请在外部网站查看</p>
+        <div style="display:flex;gap:10px;">
+          <button id="openDebotBtn" style="padding:12px 24px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+            📊 在Debot.ai查看
+          </button>
+          <button id="openBinanceBtn" style="padding:12px 24px;background:#f0b90b;color:#000;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+            🔶 在Binance查看
+          </button>
+        </div>
+      </div>
+    `;
+    // 尝试从Alpha token list获取合约地址
+    fetchAlphaTokenInfo(item).then(tokenInfo => {
+      if (tokenInfo && tokenInfo.contractAddress) {
+        document.getElementById('openDebotBtn').addEventListener('click', () => {
+          const chain = tokenInfo.chain || 'bsc';
+          window.open(`https://debot.ai/token/${chain}/${tokenInfo.contractAddress}`, '_blank');
+        });
+      } else {
+        document.getElementById('openDebotBtn').addEventListener('click', () => {
+          alert('无法获取代币合约地址');
+        });
+      }
+    });
+    document.getElementById('openBinanceBtn').addEventListener('click', () => {
+      window.open(`https://www.binance.com/zh-CN/price/${item.name.toLowerCase()}`, '_blank');
+    });
+    return;
+  } else if (item.type === 'crypto') {
     // 虚拟币用TradingView
     const exMap = { binance: 'BINANCE', okx: 'OKX', bitget: 'BITGET', mexc: 'MEXC' };
     const tvSymbol = `${exMap[item.source] || 'BINANCE'}:${item.name}USDT`;
@@ -729,6 +784,31 @@ function openChart(item) {
   }
 
   container.appendChild(iframe);
+}
+
+// 获取Alpha代币信息（包含合约地址）
+async function fetchAlphaTokenInfo(item) {
+  try {
+    const r = await window.fetch('https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list');
+    if (r.ok) {
+      const data = await r.json();
+      if (data && data.data && Array.isArray(data.data)) {
+        const token = data.data.find(t => {
+          if (item.tokenId && t.id === item.tokenId) return true;
+          return t.symbol && t.symbol.toUpperCase() === item.name.toUpperCase();
+        });
+        if (token) {
+          return {
+            contractAddress: token.contractAddress || token.address,
+            chain: token.network || token.chain || 'bsc'
+          };
+        }
+      }
+    }
+  } catch (e) {
+    console.error('获取Alpha代币信息失败:', e);
+  }
+  return null;
 }
 
 function closeChart() {
