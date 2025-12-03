@@ -41,7 +41,7 @@ let stockList = [];
 let metalList = [...DEFAULT_METALS];
 
 // 交易所图标
-const EXCHANGE_ICONS = { binance: '🔶', okx: '⚫', bitget: '🟢', mexc: '🔵' };
+const EXCHANGE_ICONS = { binance: '🔶', binance_alpha: '🅰️', okx: '⚫', bitget: '🟢', mexc: '🔵' };
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', function() {
@@ -254,7 +254,7 @@ function closeAllConnections() {
 
 // ==================== 虚拟币连接 ====================
 function connectCrypto() {
-  const byExchange = { binance: [], okx: [], bitget: [], mexc: [] };
+  const byExchange = { binance: [], binance_alpha: [], okx: [], bitget: [], mexc: [] };
 
   cryptoList.forEach(coin => {
     const src = coin.source || 'binance';
@@ -262,6 +262,7 @@ function connectCrypto() {
   });
 
   byExchange.binance.forEach(c => connectBinanceWS(c));
+  if (byExchange.binance_alpha.length > 0) startAlphaPolling(byExchange.binance_alpha);
   if (byExchange.okx.length > 0) connectOkxWS(byExchange.okx);
   if (byExchange.bitget.length > 0) connectBitgetWS(byExchange.bitget);
   if (byExchange.mexc.length > 0) startMexcPolling(byExchange.mexc);
@@ -346,6 +347,36 @@ function startMexcPolling(coins) {
   };
   fetch();
   pollingIntervals['mexc'] = setInterval(fetch, 5000);
+}
+
+// Binance Alpha代币轮询
+function startAlphaPolling(coins) {
+  const fetchAlpha = async () => {
+    try {
+      // 获取Alpha token列表（包含价格信息）
+      const r = await window.fetch('https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list');
+      if (r.ok) {
+        const data = await r.json();
+        if (data && data.data && Array.isArray(data.data)) {
+          for (const c of coins) {
+            // 通过tokenId或symbol匹配
+            const token = data.data.find(t => {
+              if (c.tokenId && t.id === c.tokenId) return true;
+              return t.symbol && t.symbol.toUpperCase() === c.name.toUpperCase();
+            });
+            if (token && token.price) {
+              const price = parseFloat(token.price);
+              const change = token.priceChange24h ? parseFloat(token.priceChange24h) : 0;
+              priceData[c.symbol] = { price, changePercent: change, isAlpha: true };
+              updateCard(c.symbol);
+            }
+          }
+        }
+      }
+    } catch (e) { console.error('Alpha数据获取失败:', e); }
+  };
+  fetchAlpha();
+  pollingIntervals['alpha'] = setInterval(fetchAlpha, 10000); // 10秒更新
 }
 
 // ==================== 股票数据 ====================

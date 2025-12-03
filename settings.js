@@ -82,6 +82,23 @@ const EXCHANGES = {
     // 解析验证响应
     parseValidation: (data) => data && data.price
   },
+  binance_alpha: {
+    name: 'Alpha',
+    icon: '🅰️',
+    // Alpha代币验证 - 从token list获取
+    validateUrl: (symbol) => `https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list`,
+    getTradingPair: (symbol, tokenId) => tokenId ? `ALPHA_${tokenId}USDT` : `${symbol}USDT`,
+    parseValidation: (data, symbol) => {
+      // 从token list中查找对应的代币
+      if (data && data.data && Array.isArray(data.data)) {
+        const token = data.data.find(t => t.symbol && t.symbol.toUpperCase() === symbol.toUpperCase());
+        if (token) {
+          return { valid: true, tokenId: token.id, name: token.symbol };
+        }
+      }
+      return false;
+    }
+  },
   okx: {
     name: 'OKX',
     icon: '⚫',
@@ -220,7 +237,8 @@ async function validateCoin(symbol, exchange) {
     }
 
     const data = await response.json();
-    return config.parseValidation(data);
+    // Alpha需要传递symbol来查找对应代币
+    return config.parseValidation(data, symbol);
   } catch (error) {
     console.error(`验证失败:`, error);
     // 网络错误时，可能是CORS问题，尝试备用方案
@@ -274,11 +292,14 @@ async function addCoin() {
     }
 
     // 从 Chrome Storage 获取现有的自定义代币
+    // Alpha验证返回对象包含tokenId
+    const tokenId = (exists && exists.tokenId) ? exists.tokenId : null;
+
     chrome.storage.local.get([CUSTOM_COINS_KEY], function(result) {
       const customCoins = result[CUSTOM_COINS_KEY] || [];
 
-      // 生成唯一key
-      const tradingPair = config.getTradingPair(symbol);
+      // 生成唯一key - Alpha代币使用tokenId
+      const tradingPair = config.getTradingPair(symbol, tokenId);
       const coinKey = exchange === 'binance' ? tradingPair : `${exchange.toUpperCase()}_${tradingPair.replace('-', '')}`;
 
       // 检查是否已存在
@@ -295,7 +316,8 @@ async function addCoin() {
         name: symbol,
         icon: getRandomIcon(),
         source: exchange,
-        tradingPair: tradingPair
+        tradingPair: tradingPair,
+        tokenId: tokenId // Alpha代币保存tokenId
       };
 
       customCoins.push(newCoin);
