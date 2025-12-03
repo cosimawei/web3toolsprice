@@ -684,7 +684,8 @@ function openChart(item) {
       tvSymbol = `SZSE:${code.slice(2)}`;
       interval = 'D'; // A股日K
     } else if (code.startsWith('us')) {
-      tvSymbol = `NASDAQ:${code.slice(2)}`;
+      // 美股不指定交易所，让TradingView自动匹配
+      tvSymbol = code.slice(2);
       interval = '15'; // 美股15分钟
     } else {
       tvSymbol = code;
