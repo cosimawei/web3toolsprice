@@ -446,6 +446,10 @@
         <span class="checkbox-label">🅰️ Alpha</span>
       </label>
       <label class="checkbox-item">
+        <input type="checkbox" id="showMeme" checked>
+        <span class="checkbox-label">🐸 MEME</span>
+      </label>
+      <label class="checkbox-item">
         <input type="checkbox" id="showStock" checked>
         <span class="checkbox-label">📈 股市</span>
       </label>
@@ -553,11 +557,16 @@
         <label>代币符号</label>
         <input type="text" id="coinSymbol" placeholder="如：OKB、PEPE" maxlength="15">
       </div>
+      <div class="input-group" id="coinNoteGroup" style="display:none;">
+        <label>备注（可选）</label>
+        <input type="text" id="coinNote" placeholder="添加备注信息" maxlength="50">
+      </div>
       <button class="add-btn" id="addBtn">添加</button>
     </div>
 
     <div class="info-text" id="infoText">
-      💡 系统会自动验证该代币在所选交易所是否存在，支持实时WebSocket推送。
+      💡 系统会自动验证该代币在所选交易所是否存在，支持实时WebSocket推送。<br>
+      💡 Alpha代币支持添加备注，鼠标悬停可查看。
     </div>
 
     <div class="success-message" id="successMessage">
@@ -571,6 +580,81 @@
     <div class="section-title" style="margin-top: 20px;">我的自定义代币</div>
     <div class="custom-coins-list" id="customCoinsList">
       <div class="empty-state">暂无自定义代币</div>
+    </div>
+  </div>
+
+  <!-- MEME币设置区域 -->
+  <div class="section">
+    <div class="section-title">🐸 MEME币设置</div>
+
+    <div class="data-source-section">
+      <label class="section-label">选择网络</label>
+      <div class="radio-group">
+        <label class="radio-item">
+          <input type="radio" name="memeNetwork" value="bsc" checked>
+          <span class="radio-label">
+            <span class="radio-icon">🔶</span>
+            BSC
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="memeNetwork" value="eth">
+          <span class="radio-label">
+            <span class="radio-icon">⟠</span>
+            ETH
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="memeNetwork" value="sol">
+          <span class="radio-label">
+            <span class="radio-icon">◎</span>
+            SOL
+          </span>
+        </label>
+        <label class="radio-item">
+          <input type="radio" name="memeNetwork" value="base">
+          <span class="radio-label">
+            <span class="radio-icon">🔵</span>
+            Base
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>代币名称</label>
+        <input type="text" id="memeName" placeholder="如：PEPE、DOGE" maxlength="20">
+      </div>
+      <div class="input-group">
+        <label>合约地址</label>
+        <input type="text" id="memeContract" placeholder="0x..." maxlength="66">
+      </div>
+    </div>
+    <div class="add-coin-form" style="margin-top:10px;">
+      <div class="input-group">
+        <label>备注（可选）</label>
+        <input type="text" id="memeNote" placeholder="添加备注信息" maxlength="50">
+      </div>
+      <button class="add-btn" id="addMemeBtn">添加</button>
+    </div>
+
+    <div class="info-text">
+      💡 输入代币名称和合约地址，系统会从GeckoTerminal获取价格数据<br>
+      💡 点击卡片可跳转到Debot查看K线图
+    </div>
+
+    <div class="success-message" id="memeSuccessMessage">
+      ✅ MEME币添加成功！请返回主界面查看。
+    </div>
+
+    <div class="error-message" id="memeErrorMessage">
+      ❌ <span id="memeErrorText"></span>
+    </div>
+
+    <div class="section-title" style="margin-top: 20px;">我的MEME币</div>
+    <div class="custom-coins-list" id="customMemeList">
+      <div class="empty-state">暂无MEME币</div>
     </div>
   </div>
 

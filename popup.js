@@ -9,9 +9,11 @@ let currentTab = 'crypto';
 const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
 const CUSTOM_ALPHA_KEY = 'customAlpha';
+const CUSTOM_MEME_KEY = 'customMeme';
 const COINS_ORDER_KEY = 'coinsOrder';
 const STOCKS_ORDER_KEY = 'stocksOrder';
 const ALPHA_ORDER_KEY = 'alphaOrder';
+const MEME_ORDER_KEY = 'memeOrder';
 const TAB_VISIBILITY_KEY = 'tabVisibility';
 
 // ==================== 默认数据 ====================
@@ -40,6 +42,7 @@ const DEFAULT_METALS = [
 // 数据列表
 let cryptoList = [];
 let alphaList = [];
+let memeList = [];
 let stockList = [];
 let metalList = [...DEFAULT_METALS];
 
@@ -88,7 +91,7 @@ function switchTab(tab) {
 
 // 应用页签显示设置
 function applyTabVisibility(visibility) {
-  const tabs = ['crypto', 'alpha', 'stock', 'metal'];
+  const tabs = ['crypto', 'alpha', 'meme', 'stock', 'metal'];
   let firstVisible = null;
 
   tabs.forEach(tab => {
@@ -113,7 +116,7 @@ function applyTabVisibility(visibility) {
 // ==================== 加载数据 ====================
 async function loadAllData() {
   return new Promise(resolve => {
-    chrome.storage.local.get([CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, CUSTOM_ALPHA_KEY, COINS_ORDER_KEY, STOCKS_ORDER_KEY, ALPHA_ORDER_KEY, TAB_VISIBILITY_KEY], result => {
+    chrome.storage.local.get([CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, CUSTOM_ALPHA_KEY, CUSTOM_MEME_KEY, COINS_ORDER_KEY, STOCKS_ORDER_KEY, ALPHA_ORDER_KEY, MEME_ORDER_KEY, TAB_VISIBILITY_KEY], result => {
       // 虚拟币（排除Alpha代币）
       const customCoins = (result[CUSTOM_COINS_KEY] || []).filter(c => c.source !== 'binance_alpha');
       const coinsOrder = result[COINS_ORDER_KEY] || [];
@@ -124,6 +127,11 @@ async function loadAllData() {
       const alphaOrder = result[ALPHA_ORDER_KEY] || [];
       alphaList = buildOrderedList([], customAlpha, alphaOrder, 'alpha');
 
+      // MEME代币
+      const customMeme = result[CUSTOM_MEME_KEY] || [];
+      const memeOrder = result[MEME_ORDER_KEY] || [];
+      memeList = buildOrderedList([], customMeme, memeOrder, 'meme');
+
       // 股市
       const customStocks = result[CUSTOM_STOCKS_KEY] || [];
       const stocksOrder = result[STOCKS_ORDER_KEY] || [];
@@ -133,7 +141,7 @@ async function loadAllData() {
       metalList = [...DEFAULT_METALS];
 
       // 应用页签显示设置
-      const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, stock: true, metal: true };
+      const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, meme: true, stock: true, metal: true };
       applyTabVisibility(visibility);
 
       resolve();
@@ -154,6 +162,7 @@ function buildOrderedList(defaults, customs, order, type) {
       tokenId: item.tokenId || null,
       contractAddress: item.contractAddress || null,
       network: item.network || 'bsc',
+      note: item.note || '', // 备注
       type: type
     });
   });
@@ -176,6 +185,7 @@ function buildOrderedList(defaults, customs, order, type) {
 function renderAllPanels() {
   renderPanel('crypto-grid', cryptoList);
   renderPanel('alpha-grid', alphaList);
+  renderPanel('meme-grid', memeList);
   renderPanel('stock-grid', stockList);
   renderPanel('metal-grid', metalList);
 }
@@ -206,12 +216,17 @@ function renderPanel(gridId, list) {
     const marketFlag = item.type === 'stock' && MARKET_FLAGS[item.source]
       ? `<span class="market-flag">${MARKET_FLAGS[item.source]}</span>` : '';
 
+    // 备注标记（Alpha和MEME）
+    const hasNote = (item.type === 'alpha' || item.type === 'meme') && item.note;
+    const noteIndicator = hasNote ? '<span class="note-indicator">📝</span>' : '';
+
     card.innerHTML = `
       <div class="coin-card-header">
         <span class="coin-card-icon">${item.icon}</span>
         <span class="coin-card-name">${item.name}</span>
         ${sourceIcon}
         ${marketFlag}
+        ${noteIndicator}
       </div>
       <div class="coin-card-price" id="price-${item.symbol}">
         <span class="coin-card-loading">加载中...</span>
@@ -219,6 +234,7 @@ function renderPanel(gridId, list) {
       <div class="coin-card-change" id="change-${item.symbol}">
         <span>--</span>
       </div>
+      ${hasNote ? `<div class="note-tooltip">${item.note}</div>` : ''}
     `;
 
     // 拖拽
@@ -243,6 +259,8 @@ function connectAll() {
   connectCrypto();
   // Alpha代币
   if (alphaList.length > 0) startAlphaPolling();
+  // MEME代币
+  if (memeList.length > 0) startMemePolling();
   // 股票
   if (stockList.length > 0) fetchStockPrices();
   // 贵金属
@@ -390,6 +408,38 @@ function startAlphaPolling() {
   };
   fetchAlpha();
   pollingIntervals['alpha'] = setInterval(fetchAlpha, 10000); // 10秒更新
+}
+
+// MEME代币轮询（使用GeckoTerminal API）
+function startMemePolling() {
+  const fetchMeme = async () => {
+    for (const c of memeList) {
+      if (!c.contractAddress) continue;
+      try {
+        const network = c.network || 'bsc';
+        const networkMap = { 'bsc': 'bsc', 'eth': 'eth', 'sol': 'solana', 'base': 'base' };
+        const geckoNetwork = networkMap[network.toLowerCase()] || network.toLowerCase();
+
+        // 使用GeckoTerminal获取token信息
+        const url = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/tokens/${c.contractAddress}`;
+        const r = await window.fetch(url);
+        if (r.ok) {
+          const data = await r.json();
+          if (data && data.data && data.data.attributes) {
+            const attrs = data.data.attributes;
+            const price = parseFloat(attrs.price_usd) || 0;
+            const change = parseFloat(attrs.price_change_percentage?.h24) || 0;
+            if (price > 0) {
+              priceData[c.symbol] = { price, changePercent: change, isMeme: true };
+              updateCard(c.symbol);
+            }
+          }
+        }
+      } catch (e) { console.error('MEME数据获取失败:', c.name, e); }
+    }
+  };
+  fetchMeme();
+  pollingIntervals['meme'] = setInterval(fetchMeme, 15000); // 15秒更新（避免超过API限制）
 }
 
 // ==================== 股票数据 ====================
@@ -664,6 +714,7 @@ function handleDrop(e) {
   let list;
   if (type === 'crypto') list = cryptoList;
   else if (type === 'alpha') list = alphaList;
+  else if (type === 'meme') list = memeList;
   else if (type === 'stock') list = stockList;
   else list = metalList;
 
@@ -678,6 +729,7 @@ function handleDrop(e) {
   let gridId;
   if (type === 'crypto') gridId = 'crypto-grid';
   else if (type === 'alpha') gridId = 'alpha-grid';
+  else if (type === 'meme') gridId = 'meme-grid';
   else if (type === 'stock') gridId = 'stock-grid';
   else gridId = 'metal-grid';
   renderPanel(gridId, list);
@@ -686,6 +738,7 @@ function handleDrop(e) {
   let orderKey;
   if (type === 'crypto') orderKey = COINS_ORDER_KEY;
   else if (type === 'alpha') orderKey = ALPHA_ORDER_KEY;
+  else if (type === 'meme') orderKey = MEME_ORDER_KEY;
   else if (type === 'stock') orderKey = STOCKS_ORDER_KEY;
   if (orderKey) {
     chrome.storage.local.set({ [orderKey]: list.map(i => i.symbol) });
@@ -704,56 +757,29 @@ function openChart(item) {
   const iframe = document.createElement('iframe');
   iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
 
-  if (item.type === 'alpha') {
-    // Alpha代币使用Binance Alpha K线API，直接绘制K线图
-    container.innerHTML = `
-      <div style="width:100%;height:100%;display:flex;flex-direction:column;background:rgba(255,255,255,0.05);border-radius:8px;overflow:hidden;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:rgba(0,0,0,0.2);">
-          <div style="display:flex;gap:8px;">
-            <button class="alpha-interval-btn active" data-interval="15m">15分</button>
-            <button class="alpha-interval-btn" data-interval="1h">1时</button>
-            <button class="alpha-interval-btn" data-interval="4h">4时</button>
-            <button class="alpha-interval-btn" data-interval="1d">日K</button>
-          </div>
-          <div id="alphaChartInfo" style="color:#fff;font-size:12px;"></div>
+  if (item.type === 'alpha' || item.type === 'meme') {
+    // Alpha和MEME代币跳转到debot查看K线
+    const network = item.network || 'bsc';
+    const address = item.contractAddress;
+    if (address) {
+      container.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
+          <p style="color:#fff;margin-bottom:20px;font-size:14px;">${item.type === 'alpha' ? 'Alpha' : 'MEME'}代币K线请在Debot查看</p>
+          <button id="openDebotBtn" style="padding:12px 24px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+            🔗 打开Debot查看K线
+          </button>
         </div>
-        <div style="flex:1;position:relative;">
-          <canvas id="alphaChart" style="width:100%;height:100%;"></canvas>
-          <div id="alphaChartLoading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;">加载中...</div>
-        </div>
-      </div>
-    `;
-
-    // 添加interval按钮样式
-    const style = document.createElement('style');
-    style.textContent = `
-      .alpha-interval-btn {
-        padding: 4px 10px;
-        background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.2);
-        border-radius: 4px;
-        color: #fff;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      .alpha-interval-btn:hover { background: rgba(255,255,255,0.2); }
-      .alpha-interval-btn.active { background: #4CAF50; border-color: #4CAF50; }
-    `;
-    document.head.appendChild(style);
-
-    // 绑定interval切换
-    let currentInterval = '15m';
-    document.querySelectorAll('.alpha-interval-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.alpha-interval-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentInterval = btn.dataset.interval;
-        loadAlphaKlines(item, currentInterval);
+      `;
+      document.getElementById('openDebotBtn').addEventListener('click', () => {
+        window.open(`https://debot.ai/token/${network}/${address}`, '_blank');
       });
-    });
-
-    // 加载K线
-    loadAlphaKlines(item, currentInterval);
+    } else {
+      container.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
+          <p style="color:#fff;font-size:14px;">暂无合约地址，无法查看K线</p>
+        </div>
+      `;
+    }
     return;
   } else if (item.type === 'crypto') {
     // 虚拟币用TradingView
@@ -805,272 +831,6 @@ function openChart(item) {
   }
 
   container.appendChild(iframe);
-}
-
-// 获取Alpha代币信息（包含合约地址）
-async function fetchAlphaTokenInfo(item) {
-  try {
-    const r = await window.fetch('https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list');
-    if (r.ok) {
-      const data = await r.json();
-      if (data && data.data && Array.isArray(data.data)) {
-        const token = data.data.find(t => {
-          if (item.tokenId && t.id === item.tokenId) return true;
-          return t.symbol && t.symbol.toUpperCase() === item.name.toUpperCase();
-        });
-        if (token) {
-          return {
-            contractAddress: token.contractAddress || token.address,
-            chain: token.network || token.chain || 'bsc'
-          };
-        }
-      }
-    }
-  } catch (e) {
-    console.error('获取Alpha代币信息失败:', e);
-  }
-  return null;
-}
-
-// 加载Alpha K线数据 - 优先使用GeckoTerminal API
-async function loadAlphaKlines(item, interval) {
-  const loading = document.getElementById('alphaChartLoading');
-  const infoEl = document.getElementById('alphaChartInfo');
-  if (loading) loading.style.display = 'block';
-
-  try {
-    // 优先尝试GeckoTerminal API（需要合约地址）
-    if (item.contractAddress) {
-      const geckoData = await fetchGeckoTerminalKlines(item.contractAddress, item.network || 'bsc', interval);
-      if (geckoData && geckoData.length > 0) {
-        if (loading) loading.style.display = 'none';
-        drawAlphaChart(geckoData, infoEl);
-        return;
-      }
-    }
-
-    // 备用：尝试Binance Alpha API
-    let symbol = item.tradingPair;
-    if (item.tokenId) {
-      symbol = `ALPHA_${item.tokenId}USDT`;
-    }
-
-    const url = `https://www.binance.com/bapi/defi/v1/public/alpha-trade/klines?interval=${interval}&limit=100&symbol=${symbol}`;
-    console.log('获取Alpha K线:', url);
-
-    const r = await window.fetch(url);
-    if (r.ok) {
-      const data = await r.json();
-      if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
-        if (loading) loading.style.display = 'none';
-        drawAlphaChart(data.data, infoEl);
-        return;
-      }
-    }
-
-    // 如果上面失败，尝试用symbol名称
-    const url2 = `https://www.binance.com/bapi/defi/v1/public/alpha-trade/klines?interval=${interval}&limit=100&symbol=${item.name.toUpperCase()}USDT`;
-    const r2 = await window.fetch(url2);
-    if (r2.ok) {
-      const data2 = await r2.json();
-      if (data2 && data2.data && Array.isArray(data2.data) && data2.data.length > 0) {
-        if (loading) loading.style.display = 'none';
-        drawAlphaChart(data2.data, infoEl);
-        return;
-      }
-    }
-
-    if (loading) loading.textContent = '暂无K线数据';
-  } catch (e) {
-    console.error('获取Alpha K线失败:', e);
-    if (loading) loading.textContent = '加载失败';
-  }
-}
-
-// 从GeckoTerminal获取K线数据
-async function fetchGeckoTerminalKlines(contractAddress, network, interval) {
-  try {
-    // 映射网络名称
-    const networkMap = { 'bsc': 'bsc', 'eth': 'eth', 'sol': 'solana', 'base': 'base' };
-    const geckoNetwork = networkMap[network.toLowerCase()] || network.toLowerCase();
-
-    // 1. 获取该token的交易池
-    const poolsUrl = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/tokens/${contractAddress}/pools?page=1`;
-    console.log('GeckoTerminal获取pools:', poolsUrl);
-
-    const poolsRes = await window.fetch(poolsUrl);
-    if (!poolsRes.ok) return null;
-
-    const poolsData = await poolsRes.json();
-    if (!poolsData.data || poolsData.data.length === 0) return null;
-
-    // 使用第一个pool（通常是流动性最大的）
-    const poolAddress = poolsData.data[0].attributes.address;
-    console.log('使用pool:', poolAddress);
-
-    // 2. 映射interval到GeckoTerminal格式
-    // GeckoTerminal: timeframe=day|hour|minute, aggregate=1|4|12(hour)|1|5|15(minute)
-    let timeframe, aggregate;
-    switch (interval) {
-      case '15m':
-        timeframe = 'minute';
-        aggregate = 15;
-        break;
-      case '1h':
-        timeframe = 'hour';
-        aggregate = 1;
-        break;
-      case '4h':
-        timeframe = 'hour';
-        aggregate = 4;
-        break;
-      case '1d':
-        timeframe = 'day';
-        aggregate = 1;
-        break;
-      default:
-        timeframe = 'hour';
-        aggregate = 1;
-    }
-
-    // 3. 获取OHLCV数据
-    const ohlcvUrl = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/pools/${poolAddress}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=100&currency=usd`;
-    console.log('GeckoTerminal获取OHLCV:', ohlcvUrl);
-
-    const ohlcvRes = await window.fetch(ohlcvUrl);
-    if (!ohlcvRes.ok) return null;
-
-    const ohlcvData = await ohlcvRes.json();
-    if (!ohlcvData.data || !ohlcvData.data.attributes || !ohlcvData.data.attributes.ohlcv_list) return null;
-
-    // 4. 转换数据格式为与Binance相同的格式 [time, open, high, low, close, volume]
-    // GeckoTerminal格式: [timestamp, open, high, low, close, volume]
-    const klines = ohlcvData.data.attributes.ohlcv_list.map(item => [
-      item[0] * 1000, // 时间戳转毫秒
-      item[1].toString(),
-      item[2].toString(),
-      item[3].toString(),
-      item[4].toString(),
-      item[5].toString()
-    ]).reverse(); // GeckoTerminal返回的是倒序，需要反转
-
-    console.log('GeckoTerminal K线数据:', klines.length, '条');
-    return klines;
-
-  } catch (e) {
-    console.error('GeckoTerminal API失败:', e);
-    return null;
-  }
-}
-
-// 绘制Alpha K线图
-function drawAlphaChart(klines, infoEl) {
-  const canvas = document.getElementById('alphaChart');
-  if (!canvas) return;
-
-  // 设置canvas实际像素大小
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = rect.width * dpr;
-  canvas.height = rect.height * dpr;
-
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const width = rect.width;
-  const height = rect.height;
-  const padding = { top: 20, right: 60, bottom: 30, left: 10 };
-
-  // 清空画布
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(0, 0, width, height);
-
-  // 解析K线数据 [openTime, open, high, low, close, volume, closeTime]
-  const candles = klines.map(k => ({
-    time: k[0],
-    open: parseFloat(k[1]),
-    high: parseFloat(k[2]),
-    low: parseFloat(k[3]),
-    close: parseFloat(k[4]),
-    volume: parseFloat(k[5])
-  }));
-
-  if (candles.length === 0) return;
-
-  // 计算价格范围
-  const prices = candles.flatMap(c => [c.high, c.low]);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
-  const priceRange = maxPrice - minPrice || 1;
-  const pricePadding = priceRange * 0.1;
-
-  // 绘图区域
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-  const candleWidth = Math.max(2, (chartWidth / candles.length) * 0.7);
-  const candleGap = chartWidth / candles.length;
-
-  // 价格到Y坐标
-  const priceToY = (price) => {
-    return padding.top + chartHeight - ((price - minPrice + pricePadding) / (priceRange + pricePadding * 2)) * chartHeight;
-  };
-
-  // 绘制网格线
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = padding.top + (chartHeight / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(padding.left, y);
-    ctx.lineTo(width - padding.right, y);
-    ctx.stroke();
-
-    // 价格标签
-    const price = maxPrice + pricePadding - ((priceRange + pricePadding * 2) / 4) * i;
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(formatChartPrice(price), width - padding.right + 5, y + 3);
-  }
-
-  // 绘制K线
-  candles.forEach((candle, i) => {
-    const x = padding.left + i * candleGap + candleGap / 2;
-    const isUp = candle.close >= candle.open;
-    const color = isUp ? '#26a69a' : '#ef5350';
-
-    // 影线
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x, priceToY(candle.high));
-    ctx.lineTo(x, priceToY(candle.low));
-    ctx.stroke();
-
-    // 实体
-    const bodyTop = priceToY(Math.max(candle.open, candle.close));
-    const bodyBottom = priceToY(Math.min(candle.open, candle.close));
-    const bodyHeight = Math.max(1, bodyBottom - bodyTop);
-
-    ctx.fillStyle = color;
-    ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-  });
-
-  // 显示最新价格信息
-  const lastCandle = candles[candles.length - 1];
-  const change = ((lastCandle.close - candles[0].open) / candles[0].open * 100).toFixed(2);
-  const changeColor = change >= 0 ? '#26a69a' : '#ef5350';
-  if (infoEl) {
-    infoEl.innerHTML = `最新: <span style="color:${changeColor}">${formatChartPrice(lastCandle.close)}</span> (<span style="color:${changeColor}">${change >= 0 ? '+' : ''}${change}%</span>)`;
-  }
-}
-
-// 格式化图表价格
-function formatChartPrice(price) {
-  if (price >= 1) return price.toFixed(2);
-  if (price >= 0.01) return price.toFixed(4);
-  if (price >= 0.0001) return price.toFixed(6);
-  return price.toFixed(8);
 }
 
 function closeChart() {

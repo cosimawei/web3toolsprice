@@ -2,6 +2,7 @@
 const CUSTOM_COINS_KEY = 'customCoins';
 const CUSTOM_STOCKS_KEY = 'customStocks';
 const CUSTOM_ALPHA_KEY = 'customAlpha';
+const CUSTOM_MEME_KEY = 'customMeme';
 const API_APPCODE_KEY = 'metalApiAppCode';
 const TAB_VISIBILITY_KEY = 'tabVisibility';
 
@@ -134,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
   console.log('设置页面已加载');
   loadCustomCoins();
   loadCustomStocks();
+  loadCustomMeme();
   loadApiConfig();
   loadTabVisibility();
 
@@ -153,6 +155,12 @@ document.addEventListener('DOMContentLoaded', function() {
   const addBtn = document.getElementById('addBtn');
   if (addBtn) {
     addBtn.addEventListener('click', addCoin);
+  }
+
+  // 绑定添加MEME币按钮事件
+  const addMemeBtn = document.getElementById('addMemeBtn');
+  if (addMemeBtn) {
+    addMemeBtn.addEventListener('click', addMeme);
   }
 
   // 绑定添加股票按钮事件
@@ -189,6 +197,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 交易所选择变化时，显示/隐藏备注输入框
+  const dataSourceRadios = document.querySelectorAll('input[name="dataSource"]');
+  dataSourceRadios.forEach(radio => {
+    radio.addEventListener('change', function() {
+      const noteGroup = document.getElementById('coinNoteGroup');
+      if (noteGroup) {
+        noteGroup.style.display = this.value === 'binance_alpha' ? '' : 'none';
+      }
+    });
+  });
+
   // 使用事件委托处理删除代币按钮点击
   const customCoinsList = document.getElementById('customCoinsList');
   if (customCoinsList) {
@@ -197,6 +216,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const coinKey = e.target.dataset.key;
         if (coinKey) {
           removeCustomCoin(coinKey);
+        }
+      }
+    });
+  }
+
+  // 使用事件委托处理删除MEME币按钮点击
+  const customMemeList = document.getElementById('customMemeList');
+  if (customMemeList) {
+    customMemeList.addEventListener('click', function(e) {
+      if (e.target.classList.contains('remove-btn')) {
+        const memeKey = e.target.dataset.key;
+        if (memeKey) {
+          removeCustomMeme(memeKey);
         }
       }
     });
@@ -326,6 +358,9 @@ async function addCoin() {
       }
 
       // 添加新代币
+      const noteInput = document.getElementById('coinNote');
+      const note = (exchange === 'binance_alpha' && noteInput) ? noteInput.value.trim() : '';
+
       const newCoin = {
         symbol: coinKey,
         name: symbol,
@@ -334,7 +369,8 @@ async function addCoin() {
         tradingPair: tradingPair,
         tokenId: tokenId, // Alpha代币保存tokenId
         contractAddress: contractAddress, // 合约地址（用于GeckoTerminal）
-        network: network // 网络（如bsc, eth等）
+        network: network, // 网络（如bsc, eth等）
+        note: note // 备注
       };
 
       customList.push(newCoin);
@@ -353,6 +389,7 @@ async function addCoin() {
 
         // 清空输入框
         symbolInput.value = '';
+        if (noteInput) noteInput.value = '';
 
         // 重新加载列表
         loadCustomCoins();
@@ -674,6 +711,201 @@ function loadCustomStocks() {
   });
 }
 
+// ==================== MEME币相关函数 ====================
+
+// 获取当前选中的网络
+function getSelectedMemeNetwork() {
+  const selected = document.querySelector('input[name="memeNetwork"]:checked');
+  return selected ? selected.value : 'bsc';
+}
+
+// 添加MEME币
+async function addMeme() {
+  const nameInput = document.getElementById('memeName');
+  const contractInput = document.getElementById('memeContract');
+  const noteInput = document.getElementById('memeNote');
+  const addBtn = document.getElementById('addMemeBtn');
+
+  const name = nameInput.value.trim();
+  const contract = contractInput.value.trim().toLowerCase();
+  const note = noteInput ? noteInput.value.trim() : '';
+  const network = getSelectedMemeNetwork();
+
+  // 隐藏之前的消息
+  hideMemeMessages();
+
+  // 验证输入
+  if (!name) {
+    showMemeError('请输入代币名称');
+    return;
+  }
+  if (!contract) {
+    showMemeError('请输入合约地址');
+    return;
+  }
+  if (!contract.startsWith('0x') && network !== 'sol') {
+    showMemeError('合约地址格式不正确');
+    return;
+  }
+
+  // 显示加载状态
+  addBtn.classList.add('loading');
+  addBtn.disabled = true;
+
+  try {
+    // 从 Chrome Storage 获取现有的MEME币
+    chrome.storage.local.get([CUSTOM_MEME_KEY], function(result) {
+      const customMeme = result[CUSTOM_MEME_KEY] || [];
+
+      // 生成唯一key
+      const memeKey = `MEME_${network.toUpperCase()}_${contract.slice(-8).toUpperCase()}`;
+
+      // 检查是否已存在
+      if (customMeme.some(m => m.contractAddress === contract)) {
+        showMemeError('该MEME币已存在');
+        addBtn.classList.remove('loading');
+        addBtn.disabled = false;
+        return;
+      }
+
+      // 添加新MEME币
+      const newMeme = {
+        symbol: memeKey,
+        name: name,
+        icon: getRandomIcon(),
+        source: 'meme',
+        tradingPair: contract,
+        contractAddress: contract,
+        network: network,
+        note: note,
+        type: 'meme'
+      };
+
+      customMeme.push(newMeme);
+
+      // 保存到 Chrome Storage
+      chrome.storage.local.set({ [CUSTOM_MEME_KEY]: customMeme }, function() {
+        if (chrome.runtime.lastError) {
+          showMemeError('保存失败：' + chrome.runtime.lastError.message);
+          addBtn.classList.remove('loading');
+          addBtn.disabled = false;
+          return;
+        }
+
+        console.log('MEME币添加成功！', newMeme);
+        showMemeSuccess();
+
+        // 清空输入框
+        nameInput.value = '';
+        contractInput.value = '';
+        if (noteInput) noteInput.value = '';
+
+        // 重新加载列表
+        loadCustomMeme();
+
+        addBtn.classList.remove('loading');
+        addBtn.disabled = false;
+      });
+    });
+
+  } catch (error) {
+    console.error('添加MEME币失败:', error);
+    showMemeError('添加失败，请稍后重试');
+  } finally {
+    addBtn.classList.remove('loading');
+    addBtn.disabled = false;
+  }
+}
+
+// 显示MEME错误消息
+function showMemeError(message) {
+  const errorMessage = document.getElementById('memeErrorMessage');
+  const errorText = document.getElementById('memeErrorText');
+  const successMessage = document.getElementById('memeSuccessMessage');
+
+  if (successMessage) successMessage.classList.remove('show');
+  if (errorText) errorText.textContent = message;
+  if (errorMessage) {
+    errorMessage.classList.add('show');
+    setTimeout(() => errorMessage.classList.remove('show'), 5000);
+  }
+}
+
+// 显示MEME成功消息
+function showMemeSuccess() {
+  const successMessage = document.getElementById('memeSuccessMessage');
+  const errorMessage = document.getElementById('memeErrorMessage');
+
+  if (errorMessage) errorMessage.classList.remove('show');
+  if (successMessage) {
+    successMessage.classList.add('show');
+    setTimeout(() => successMessage.classList.remove('show'), 3000);
+  }
+}
+
+// 隐藏MEME消息
+function hideMemeMessages() {
+  const successEl = document.getElementById('memeSuccessMessage');
+  const errorEl = document.getElementById('memeErrorMessage');
+  if (successEl) successEl.classList.remove('show');
+  if (errorEl) errorEl.classList.remove('show');
+}
+
+// 删除MEME币
+function removeCustomMeme(memeKey) {
+  if (!confirm('确定要删除这个MEME币吗？')) {
+    return;
+  }
+
+  chrome.storage.local.get([CUSTOM_MEME_KEY], function(result) {
+    const customMeme = result[CUSTOM_MEME_KEY] || [];
+    const updatedMeme = customMeme.filter(m => m.symbol !== memeKey);
+
+    chrome.storage.local.set({ [CUSTOM_MEME_KEY]: updatedMeme }, function() {
+      loadCustomMeme();
+    });
+  });
+}
+
+// 加载并显示MEME币列表
+function loadCustomMeme() {
+  console.log('加载MEME币列表...');
+  chrome.storage.local.get([CUSTOM_MEME_KEY], function(result) {
+    const customMeme = result[CUSTOM_MEME_KEY] || [];
+    const listContainer = document.getElementById('customMemeList');
+
+    console.log('已加载的MEME币:', customMeme);
+
+    if (!listContainer) return;
+
+    if (customMeme.length === 0) {
+      listContainer.innerHTML = '<div class="empty-state">暂无MEME币</div>';
+      return;
+    }
+
+    const networkNames = { bsc: 'BSC', eth: 'ETH', sol: 'SOL', base: 'Base' };
+
+    listContainer.innerHTML = customMeme.map(meme => {
+      const networkLabel = networkNames[meme.network] || meme.network.toUpperCase();
+      const noteDisplay = meme.note ? `<div class="coin-full-name" style="color:#ffc107;">📝 ${meme.note}</div>` : '';
+
+      return `
+        <div class="custom-coin-item">
+          <div class="coin-info">
+            <div class="coin-symbol">
+              ${meme.name}
+              <span class="source-badge" style="background:rgba(156,39,176,0.3);color:#ce93d8;">${networkLabel}</span>
+            </div>
+            <div class="coin-full-name">${meme.contractAddress.slice(0, 10)}...${meme.contractAddress.slice(-8)}</div>
+            ${noteDisplay}
+          </div>
+          <button class="remove-btn" data-key="${meme.symbol}">删除</button>
+        </div>
+      `;
+    }).join('');
+  });
+}
+
 // ==================== API配置相关函数 ====================
 
 // 加载API配置
@@ -723,15 +955,17 @@ function saveApiConfig() {
 // 加载页签显示设置
 function loadTabVisibility() {
   chrome.storage.local.get([TAB_VISIBILITY_KEY], function(result) {
-    const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, stock: true, metal: true };
+    const visibility = result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, meme: true, stock: true, metal: true };
 
     const cryptoCheckbox = document.getElementById('showCrypto');
     const alphaCheckbox = document.getElementById('showAlpha');
+    const memeCheckbox = document.getElementById('showMeme');
     const stockCheckbox = document.getElementById('showStock');
     const metalCheckbox = document.getElementById('showMetal');
 
     if (cryptoCheckbox) cryptoCheckbox.checked = visibility.crypto !== false;
     if (alphaCheckbox) alphaCheckbox.checked = visibility.alpha !== false;
+    if (memeCheckbox) memeCheckbox.checked = visibility.meme !== false;
     if (stockCheckbox) stockCheckbox.checked = visibility.stock !== false;
     if (metalCheckbox) metalCheckbox.checked = visibility.metal !== false;
   });
@@ -741,6 +975,7 @@ function loadTabVisibility() {
 function saveTabVisibility() {
   const cryptoCheckbox = document.getElementById('showCrypto');
   const alphaCheckbox = document.getElementById('showAlpha');
+  const memeCheckbox = document.getElementById('showMeme');
   const stockCheckbox = document.getElementById('showStock');
   const metalCheckbox = document.getElementById('showMetal');
   const successMsg = document.getElementById('tabsSuccessMessage');
@@ -748,12 +983,13 @@ function saveTabVisibility() {
   const visibility = {
     crypto: cryptoCheckbox.checked,
     alpha: alphaCheckbox.checked,
+    meme: memeCheckbox.checked,
     stock: stockCheckbox.checked,
     metal: metalCheckbox.checked
   };
 
   // 至少选择一个
-  if (!visibility.crypto && !visibility.alpha && !visibility.stock && !visibility.metal) {
+  if (!visibility.crypto && !visibility.alpha && !visibility.meme && !visibility.stock && !visibility.metal) {
     alert('至少需要选择一个页签显示');
     return;
   }
@@ -771,6 +1007,7 @@ function saveTabVisibility() {
 const COINS_ORDER_KEY = 'coinsOrder';
 const STOCKS_ORDER_KEY = 'stocksOrder';
 const ALPHA_ORDER_KEY = 'alphaOrder';
+const MEME_ORDER_KEY = 'memeOrder';
 
 // 初始化导入导出按钮
 document.addEventListener('DOMContentLoaded', function() {
@@ -797,23 +1034,27 @@ function exportConfig() {
     CUSTOM_COINS_KEY,
     CUSTOM_STOCKS_KEY,
     CUSTOM_ALPHA_KEY,
+    CUSTOM_MEME_KEY,
     COINS_ORDER_KEY,
     STOCKS_ORDER_KEY,
     ALPHA_ORDER_KEY,
+    MEME_ORDER_KEY,
     TAB_VISIBILITY_KEY,
     API_APPCODE_KEY
   ], function(result) {
     const config = {
-      version: '1.1',
+      version: '1.2',
       exportTime: new Date().toISOString(),
       data: {
         customCoins: result[CUSTOM_COINS_KEY] || [],
         customStocks: result[CUSTOM_STOCKS_KEY] || [],
         customAlpha: result[CUSTOM_ALPHA_KEY] || [],
+        customMeme: result[CUSTOM_MEME_KEY] || [],
         coinsOrder: result[COINS_ORDER_KEY] || [],
         stocksOrder: result[STOCKS_ORDER_KEY] || [],
         alphaOrder: result[ALPHA_ORDER_KEY] || [],
-        tabVisibility: result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, stock: true, metal: true },
+        memeOrder: result[MEME_ORDER_KEY] || [],
+        tabVisibility: result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, meme: true, stock: true, metal: true },
         metalApiAppCode: result[API_APPCODE_KEY] || ''
       }
     };
@@ -850,7 +1091,8 @@ function importConfig(event) {
       const coinCount = (config.data.customCoins || []).length;
       const stockCount = (config.data.customStocks || []).length;
       const alphaCount = (config.data.customAlpha || []).length;
-      const msg = '确定要导入配置吗？\n\n将导入：\n- ' + coinCount + ' 个自定义代币\n- ' + alphaCount + ' 个Alpha代币\n- ' + stockCount + ' 个自定义股票\n- 页签显示设置\n- 排序设置\n\n注意：这将覆盖当前的所有设置！';
+      const memeCount = (config.data.customMeme || []).length;
+      const msg = '确定要导入配置吗？\n\n将导入：\n- ' + coinCount + ' 个自定义代币\n- ' + alphaCount + ' 个Alpha代币\n- ' + memeCount + ' 个MEME币\n- ' + stockCount + ' 个自定义股票\n- 页签显示设置\n- 排序设置\n\n注意：这将覆盖当前的所有设置！';
 
       if (!confirm(msg)) {
         event.target.value = '';
@@ -861,9 +1103,11 @@ function importConfig(event) {
       if (config.data.customCoins) saveData[CUSTOM_COINS_KEY] = config.data.customCoins;
       if (config.data.customStocks) saveData[CUSTOM_STOCKS_KEY] = config.data.customStocks;
       if (config.data.customAlpha) saveData[CUSTOM_ALPHA_KEY] = config.data.customAlpha;
+      if (config.data.customMeme) saveData[CUSTOM_MEME_KEY] = config.data.customMeme;
       if (config.data.coinsOrder) saveData[COINS_ORDER_KEY] = config.data.coinsOrder;
       if (config.data.stocksOrder) saveData[STOCKS_ORDER_KEY] = config.data.stocksOrder;
       if (config.data.alphaOrder) saveData[ALPHA_ORDER_KEY] = config.data.alphaOrder;
+      if (config.data.memeOrder) saveData[MEME_ORDER_KEY] = config.data.memeOrder;
       if (config.data.tabVisibility) saveData[TAB_VISIBILITY_KEY] = config.data.tabVisibility;
       if (config.data.metalApiAppCode) saveData[API_APPCODE_KEY] = config.data.metalApiAppCode;
 
