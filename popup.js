@@ -703,36 +703,55 @@ function openChart(item) {
   iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
 
   if (item.type === 'alpha') {
-    // Alpha代币使用Binance Alpha K线API，通过debot.ai查看
+    // Alpha代币使用Binance Alpha K线API，直接绘制K线图
     container.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
-        <p style="color:#fff;margin-bottom:20px;font-size:14px;">Alpha代币K线请在外部网站查看</p>
-        <div style="display:flex;gap:10px;">
-          <button id="openDebotBtn" style="padding:12px 24px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
-            📊 在Debot.ai查看
-          </button>
-          <button id="openBinanceBtn" style="padding:12px 24px;background:#f0b90b;color:#000;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
-            🔶 在Binance查看
-          </button>
+      <div style="width:100%;height:100%;display:flex;flex-direction:column;background:rgba(255,255,255,0.05);border-radius:8px;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:rgba(0,0,0,0.2);">
+          <div style="display:flex;gap:8px;">
+            <button class="alpha-interval-btn active" data-interval="15m">15分</button>
+            <button class="alpha-interval-btn" data-interval="1h">1时</button>
+            <button class="alpha-interval-btn" data-interval="4h">4时</button>
+            <button class="alpha-interval-btn" data-interval="1d">日K</button>
+          </div>
+          <div id="alphaChartInfo" style="color:#fff;font-size:12px;"></div>
+        </div>
+        <div style="flex:1;position:relative;">
+          <canvas id="alphaChart" style="width:100%;height:100%;"></canvas>
+          <div id="alphaChartLoading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;">加载中...</div>
         </div>
       </div>
     `;
-    // 尝试从Alpha token list获取合约地址
-    fetchAlphaTokenInfo(item).then(tokenInfo => {
-      if (tokenInfo && tokenInfo.contractAddress) {
-        document.getElementById('openDebotBtn').addEventListener('click', () => {
-          const chain = tokenInfo.chain || 'bsc';
-          window.open(`https://debot.ai/token/${chain}/${tokenInfo.contractAddress}`, '_blank');
-        });
-      } else {
-        document.getElementById('openDebotBtn').addEventListener('click', () => {
-          alert('无法获取代币合约地址');
-        });
+
+    // 添加interval按钮样式
+    const style = document.createElement('style');
+    style.textContent = `
+      .alpha-interval-btn {
+        padding: 4px 10px;
+        background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 4px;
+        color: #fff;
+        font-size: 12px;
+        cursor: pointer;
       }
+      .alpha-interval-btn:hover { background: rgba(255,255,255,0.2); }
+      .alpha-interval-btn.active { background: #4CAF50; border-color: #4CAF50; }
+    `;
+    document.head.appendChild(style);
+
+    // 绑定interval切换
+    let currentInterval = '15m';
+    document.querySelectorAll('.alpha-interval-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.alpha-interval-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentInterval = btn.dataset.interval;
+        loadAlphaKlines(item, currentInterval);
+      });
     });
-    document.getElementById('openBinanceBtn').addEventListener('click', () => {
-      window.open(`https://www.binance.com/zh-CN/price/${item.name.toLowerCase()}`, '_blank');
-    });
+
+    // 加载K线
+    loadAlphaKlines(item, currentInterval);
     return;
   } else if (item.type === 'crypto') {
     // 虚拟币用TradingView
@@ -809,6 +828,161 @@ async function fetchAlphaTokenInfo(item) {
     console.error('获取Alpha代币信息失败:', e);
   }
   return null;
+}
+
+// 加载Alpha K线数据
+async function loadAlphaKlines(item, interval) {
+  const loading = document.getElementById('alphaChartLoading');
+  const infoEl = document.getElementById('alphaChartInfo');
+  if (loading) loading.style.display = 'block';
+
+  try {
+    // 构建symbol: 如果有tokenId用ALPHA_<id>USDT，否则用symbol
+    let symbol = item.tradingPair;
+    if (item.tokenId) {
+      symbol = `ALPHA_${item.tokenId}USDT`;
+    }
+
+    const url = `https://www.binance.com/bapi/defi/v1/public/alpha-trade/klines?interval=${interval}&limit=100&symbol=${symbol}`;
+    console.log('获取Alpha K线:', url);
+
+    const r = await window.fetch(url);
+    if (r.ok) {
+      const data = await r.json();
+      if (data && data.data && Array.isArray(data.data) && data.data.length > 0) {
+        if (loading) loading.style.display = 'none';
+        drawAlphaChart(data.data, infoEl);
+        return;
+      }
+    }
+
+    // 如果上面失败，尝试用symbol名称
+    const url2 = `https://www.binance.com/bapi/defi/v1/public/alpha-trade/klines?interval=${interval}&limit=100&symbol=${item.name.toUpperCase()}USDT`;
+    const r2 = await window.fetch(url2);
+    if (r2.ok) {
+      const data2 = await r2.json();
+      if (data2 && data2.data && Array.isArray(data2.data) && data2.data.length > 0) {
+        if (loading) loading.style.display = 'none';
+        drawAlphaChart(data2.data, infoEl);
+        return;
+      }
+    }
+
+    if (loading) loading.textContent = '暂无K线数据';
+  } catch (e) {
+    console.error('获取Alpha K线失败:', e);
+    if (loading) loading.textContent = '加载失败';
+  }
+}
+
+// 绘制Alpha K线图
+function drawAlphaChart(klines, infoEl) {
+  const canvas = document.getElementById('alphaChart');
+  if (!canvas) return;
+
+  // 设置canvas实际像素大小
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const width = rect.width;
+  const height = rect.height;
+  const padding = { top: 20, right: 60, bottom: 30, left: 10 };
+
+  // 清空画布
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(0, 0, width, height);
+
+  // 解析K线数据 [openTime, open, high, low, close, volume, closeTime]
+  const candles = klines.map(k => ({
+    time: k[0],
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low: parseFloat(k[3]),
+    close: parseFloat(k[4]),
+    volume: parseFloat(k[5])
+  }));
+
+  if (candles.length === 0) return;
+
+  // 计算价格范围
+  const prices = candles.flatMap(c => [c.high, c.low]);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const priceRange = maxPrice - minPrice || 1;
+  const pricePadding = priceRange * 0.1;
+
+  // 绘图区域
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  const candleWidth = Math.max(2, (chartWidth / candles.length) * 0.7);
+  const candleGap = chartWidth / candles.length;
+
+  // 价格到Y坐标
+  const priceToY = (price) => {
+    return padding.top + chartHeight - ((price - minPrice + pricePadding) / (priceRange + pricePadding * 2)) * chartHeight;
+  };
+
+  // 绘制网格线
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padding.top + (chartHeight / 4) * i;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(width - padding.right, y);
+    ctx.stroke();
+
+    // 价格标签
+    const price = maxPrice + pricePadding - ((priceRange + pricePadding * 2) / 4) * i;
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(formatChartPrice(price), width - padding.right + 5, y + 3);
+  }
+
+  // 绘制K线
+  candles.forEach((candle, i) => {
+    const x = padding.left + i * candleGap + candleGap / 2;
+    const isUp = candle.close >= candle.open;
+    const color = isUp ? '#26a69a' : '#ef5350';
+
+    // 影线
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, priceToY(candle.high));
+    ctx.lineTo(x, priceToY(candle.low));
+    ctx.stroke();
+
+    // 实体
+    const bodyTop = priceToY(Math.max(candle.open, candle.close));
+    const bodyBottom = priceToY(Math.min(candle.open, candle.close));
+    const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+
+    ctx.fillStyle = color;
+    ctx.fillRect(x - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+  });
+
+  // 显示最新价格信息
+  const lastCandle = candles[candles.length - 1];
+  const change = ((lastCandle.close - candles[0].open) / candles[0].open * 100).toFixed(2);
+  const changeColor = change >= 0 ? '#26a69a' : '#ef5350';
+  if (infoEl) {
+    infoEl.innerHTML = `最新: <span style="color:${changeColor}">${formatChartPrice(lastCandle.close)}</span> (<span style="color:${changeColor}">${change >= 0 ? '+' : ''}${change}%</span>)`;
+  }
+}
+
+// 格式化图表价格
+function formatChartPrice(price) {
+  if (price >= 1) return price.toFixed(2);
+  if (price >= 0.01) return price.toFixed(4);
+  if (price >= 0.0001) return price.toFixed(6);
+  return price.toFixed(8);
 }
 
 function closeChart() {
