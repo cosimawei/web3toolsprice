@@ -5,6 +5,9 @@ const CUSTOM_ALPHA_KEY = 'customAlpha';
 const CUSTOM_MEME_KEY = 'customMeme';
 const API_APPCODE_KEY = 'metalApiAppCode';
 const TAB_VISIBILITY_KEY = 'tabVisibility';
+const SYNC_URL_KEY = 'syncUrl';
+const SYNC_PASSWORD_KEY = 'syncPassword';
+const LAST_SYNC_KEY = 'lastSync';
 
 // 随机图标池
 const RANDOM_ICONS = [
@@ -139,6 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
   loadCustomMeme();
   loadApiConfig();
   loadTabVisibility();
+  loadSyncConfig();
 
   // 绑定保存API配置按钮
   const saveApiBtn = document.getElementById('saveApiBtn');
@@ -150,6 +154,20 @@ document.addEventListener('DOMContentLoaded', function() {
   const saveTabsBtn = document.getElementById('saveTabsBtn');
   if (saveTabsBtn) {
     saveTabsBtn.addEventListener('click', saveTabVisibility);
+  }
+
+  // 绑定云端同步按钮
+  const saveSyncBtn = document.getElementById('saveSyncBtn');
+  if (saveSyncBtn) {
+    saveSyncBtn.addEventListener('click', saveSyncConfig);
+  }
+  const pullCloudBtn = document.getElementById('pullCloudBtn');
+  if (pullCloudBtn) {
+    pullCloudBtn.addEventListener('click', pullFromCloud);
+  }
+  const pushCloudBtn = document.getElementById('pushCloudBtn');
+  if (pushCloudBtn) {
+    pushCloudBtn.addEventListener('click', pushToCloud);
   }
 
   // 绑定添加代币按钮事件
@@ -1215,6 +1233,228 @@ function showBackupError(message) {
   const errorMsg = document.getElementById('backupErrorMessage');
   const errorText = document.getElementById('backupErrorText');
   const successMsg = document.getElementById('backupSuccessMessage');
+
+  if (successMsg) successMsg.classList.remove('show');
+  if (errorText) errorText.textContent = message;
+  if (errorMsg) {
+    errorMsg.classList.add('show');
+    setTimeout(function() { errorMsg.classList.remove('show'); }, 5000);
+  }
+}
+
+// ==================== 云端同步 ====================
+
+// 加载同步配置
+function loadSyncConfig() {
+  chrome.storage.local.get([SYNC_URL_KEY, SYNC_PASSWORD_KEY, LAST_SYNC_KEY], function(result) {
+    const url = result[SYNC_URL_KEY] || '';
+    const pwd = result[SYNC_PASSWORD_KEY] || '';
+    const lastSync = result[LAST_SYNC_KEY];
+    const status = document.getElementById('syncStatus');
+
+    const urlInput = document.getElementById('syncUrl');
+    const pwdInput = document.getElementById('syncPassword');
+
+    if (urlInput) urlInput.value = url;
+    if (pwdInput) pwdInput.value = pwd;
+
+    if (status) {
+      if (url && pwd) {
+        let statusText = '✅ 已配置';
+        if (lastSync) {
+          statusText += ' | 上次同步: ' + new Date(lastSync).toLocaleString('zh-CN');
+        }
+        status.innerHTML = statusText;
+        status.style.color = '#4CAF50';
+      } else {
+        status.innerHTML = '⚠️ 未配置同步';
+        status.style.color = '#ff9800';
+      }
+    }
+  });
+}
+
+// 保存同步配置
+function saveSyncConfig() {
+  const url = document.getElementById('syncUrl').value.trim();
+  const pwd = document.getElementById('syncPassword').value.trim();
+  const status = document.getElementById('syncStatus');
+
+  if (!url || !pwd) {
+    if (status) {
+      status.innerHTML = '❌ 请填写同步地址和密码';
+      status.style.color = '#f44336';
+    }
+    return;
+  }
+
+  chrome.storage.local.set({
+    [SYNC_URL_KEY]: url,
+    [SYNC_PASSWORD_KEY]: pwd
+  }, function() {
+    if (status) {
+      status.innerHTML = '✅ 配置已保存';
+      status.style.color = '#4CAF50';
+    }
+    showSyncSuccess('同步配置已保存');
+  });
+}
+
+// 拉取云端配置
+async function pullFromCloud() {
+  const status = document.getElementById('syncStatus');
+
+  chrome.storage.local.get([SYNC_URL_KEY, SYNC_PASSWORD_KEY], async function(result) {
+    const url = result[SYNC_URL_KEY];
+    const pwd = result[SYNC_PASSWORD_KEY];
+
+    if (!url || !pwd) {
+      showSyncError('请先配置同步地址和密码');
+      return;
+    }
+
+    if (status) {
+      status.innerHTML = '⏳ 正在拉取...';
+      status.style.color = '#2196F3';
+    }
+
+    try {
+      const response = await fetch(`${url}/sync?pwd=${encodeURIComponent(pwd)}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '拉取失败');
+      }
+
+      if (!data.data || !data.data.data) {
+        showSyncError('云端暂无配置');
+        if (status) {
+          status.innerHTML = '⚠️ 云端暂无配置';
+          status.style.color = '#ff9800';
+        }
+        return;
+      }
+
+      const config = data.data;
+      const saveData = {};
+
+      if (config.data.customCoins) saveData[CUSTOM_COINS_KEY] = config.data.customCoins;
+      if (config.data.customStocks) saveData[CUSTOM_STOCKS_KEY] = config.data.customStocks;
+      if (config.data.customAlpha) saveData[CUSTOM_ALPHA_KEY] = config.data.customAlpha;
+      if (config.data.customMeme) saveData[CUSTOM_MEME_KEY] = config.data.customMeme;
+      if (config.data.coinsOrder) saveData[COINS_ORDER_KEY] = config.data.coinsOrder;
+      if (config.data.stocksOrder) saveData[STOCKS_ORDER_KEY] = config.data.stocksOrder;
+      if (config.data.alphaOrder) saveData[ALPHA_ORDER_KEY] = config.data.alphaOrder;
+      if (config.data.memeOrder) saveData[MEME_ORDER_KEY] = config.data.memeOrder;
+      if (config.data.tabVisibility) saveData[TAB_VISIBILITY_KEY] = config.data.tabVisibility;
+      if (config.data.metalApiAppCode) saveData[API_APPCODE_KEY] = config.data.metalApiAppCode;
+      saveData[LAST_SYNC_KEY] = new Date().toISOString();
+
+      chrome.storage.local.set(saveData, function() {
+        showSyncSuccess('拉取成功，页面将刷新...');
+        setTimeout(function() { location.reload(); }, 1500);
+      });
+
+    } catch (error) {
+      showSyncError(error.message);
+      if (status) {
+        status.innerHTML = '❌ ' + error.message;
+        status.style.color = '#f44336';
+      }
+    }
+  });
+}
+
+// 推送到云端
+async function pushToCloud() {
+  const status = document.getElementById('syncStatus');
+
+  chrome.storage.local.get([
+    SYNC_URL_KEY, SYNC_PASSWORD_KEY,
+    CUSTOM_COINS_KEY, CUSTOM_STOCKS_KEY, CUSTOM_ALPHA_KEY, CUSTOM_MEME_KEY,
+    COINS_ORDER_KEY, STOCKS_ORDER_KEY, ALPHA_ORDER_KEY, MEME_ORDER_KEY,
+    TAB_VISIBILITY_KEY, API_APPCODE_KEY
+  ], async function(result) {
+    const url = result[SYNC_URL_KEY];
+    const pwd = result[SYNC_PASSWORD_KEY];
+
+    if (!url || !pwd) {
+      showSyncError('请先配置同步地址和密码');
+      return;
+    }
+
+    if (status) {
+      status.innerHTML = '⏳ 正在推送...';
+      status.style.color = '#2196F3';
+    }
+
+    const config = {
+      version: '1.2',
+      exportTime: new Date().toISOString(),
+      data: {
+        customCoins: result[CUSTOM_COINS_KEY] || [],
+        customStocks: result[CUSTOM_STOCKS_KEY] || [],
+        customAlpha: result[CUSTOM_ALPHA_KEY] || [],
+        customMeme: result[CUSTOM_MEME_KEY] || [],
+        coinsOrder: result[COINS_ORDER_KEY] || [],
+        stocksOrder: result[STOCKS_ORDER_KEY] || [],
+        alphaOrder: result[ALPHA_ORDER_KEY] || [],
+        memeOrder: result[MEME_ORDER_KEY] || [],
+        tabVisibility: result[TAB_VISIBILITY_KEY] || { crypto: true, alpha: true, meme: true, stock: true, metal: true },
+        metalApiAppCode: result[API_APPCODE_KEY] || ''
+      }
+    };
+
+    try {
+      const response = await fetch(`${url}/sync?pwd=${encodeURIComponent(pwd)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '推送失败');
+      }
+
+      chrome.storage.local.set({ [LAST_SYNC_KEY]: new Date().toISOString() }, function() {
+        showSyncSuccess('推送成功');
+        if (status) {
+          status.innerHTML = '✅ 推送成功 | ' + new Date().toLocaleString('zh-CN');
+          status.style.color = '#4CAF50';
+        }
+      });
+
+    } catch (error) {
+      showSyncError(error.message);
+      if (status) {
+        status.innerHTML = '❌ ' + error.message;
+        status.style.color = '#f44336';
+      }
+    }
+  });
+}
+
+// 显示同步成功消息
+function showSyncSuccess(message) {
+  const successMsg = document.getElementById('syncSuccessMessage');
+  const successText = document.getElementById('syncSuccessText');
+  const errorMsg = document.getElementById('syncErrorMessage');
+
+  if (errorMsg) errorMsg.classList.remove('show');
+  if (successText) successText.textContent = message;
+  if (successMsg) {
+    successMsg.classList.add('show');
+    setTimeout(function() { successMsg.classList.remove('show'); }, 3000);
+  }
+}
+
+// 显示同步错误消息
+function showSyncError(message) {
+  const errorMsg = document.getElementById('syncErrorMessage');
+  const errorText = document.getElementById('syncErrorText');
+  const successMsg = document.getElementById('syncSuccessMessage');
 
   if (successMsg) successMsg.classList.remove('show');
   if (errorText) errorText.textContent = message;

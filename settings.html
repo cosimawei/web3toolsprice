@@ -722,9 +722,44 @@
     </div>
   </div>
 
+  <!-- 云端同步 -->
+  <div class="section">
+    <div class="section-title">☁️ 云端同步</div>
+    <div class="info-text" style="margin-bottom:15px;">
+      配置后可在多个设备间同步配置，支持Chrome插件和PWA网页共享。
+    </div>
+    <div class="add-coin-form">
+      <div class="input-group">
+        <label>同步密码</label>
+        <input type="password" id="syncPassword" placeholder="输入同步密码">
+      </div>
+    </div>
+    <div class="add-coin-form" style="margin-top:10px;">
+      <div class="input-group">
+        <label>同步地址</label>
+        <input type="text" id="syncUrl" placeholder="https://xxx.workers.dev">
+      </div>
+      <button class="add-btn" id="saveSyncBtn">保存</button>
+    </div>
+    <div id="syncStatus" class="info-text" style="margin-top:10px;"></div>
+    <div style="display:flex;gap:10px;margin-top:15px;">
+      <button type="button" class="add-btn" id="pullCloudBtn">⬇️ 拉取云端</button>
+      <button type="button" class="add-btn" id="pushCloudBtn">⬆️ 推送云端</button>
+    </div>
+    <div class="info-text" style="margin-top:10px;color:rgba(255,255,255,0.5);">
+      ⚠️ 拉取会覆盖本地配置，推送会覆盖云端配置
+    </div>
+    <div class="success-message" id="syncSuccessMessage">
+      ✅ <span id="syncSuccessText">操作成功</span>
+    </div>
+    <div class="error-message" id="syncErrorMessage">
+      ❌ <span id="syncErrorText"></span>
+    </div>
+  </div>
+
   <!-- 配置导入导出 -->
   <div class="section">
-    <div class="section-title">💾 配置备份与恢复</div>
+    <div class="section-title">💾 本地备份与恢复</div>
     <div class="info-text" style="margin-bottom:15px;">
       导出配置可以备份你的自定义代币、股票、排序等设置。换电脑或重装插件时可以直接导入恢复。
     </div>
