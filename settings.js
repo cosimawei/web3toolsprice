@@ -94,7 +94,13 @@ const EXCHANGES = {
       if (data && data.data && Array.isArray(data.data)) {
         const token = data.data.find(t => t.symbol && t.symbol.toUpperCase() === symbol.toUpperCase());
         if (token) {
-          return { valid: true, tokenId: token.id, name: token.symbol };
+          return {
+            valid: true,
+            tokenId: token.id,
+            name: token.symbol,
+            contractAddress: token.contractAddress || token.address,
+            network: token.network || 'bsc'
+          };
         }
       }
       return false;
@@ -296,8 +302,10 @@ async function addCoin() {
     }
 
     // 从 Chrome Storage 获取现有的自定义代币
-    // Alpha验证返回对象包含tokenId
+    // Alpha验证返回对象包含tokenId、contractAddress、network
     const tokenId = (exists && exists.tokenId) ? exists.tokenId : null;
+    const contractAddress = (exists && exists.contractAddress) ? exists.contractAddress : null;
+    const network = (exists && exists.network) ? exists.network : 'bsc';
 
     // Alpha代币使用单独的存储键
     const storageKey = exchange === 'binance_alpha' ? CUSTOM_ALPHA_KEY : CUSTOM_COINS_KEY;
@@ -324,7 +332,9 @@ async function addCoin() {
         icon: getRandomIcon(),
         source: exchange,
         tradingPair: tradingPair,
-        tokenId: tokenId // Alpha代币保存tokenId
+        tokenId: tokenId, // Alpha代币保存tokenId
+        contractAddress: contractAddress, // 合约地址（用于GeckoTerminal）
+        network: network // 网络（如bsc, eth等）
       };
 
       customList.push(newCoin);

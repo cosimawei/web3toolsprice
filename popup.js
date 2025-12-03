@@ -152,6 +152,8 @@ function buildOrderedList(defaults, customs, order, type) {
       source: item.source || 'binance',
       tradingPair: item.tradingPair || item.symbol,
       tokenId: item.tokenId || null,
+      contractAddress: item.contractAddress || null,
+      network: item.network || 'bsc',
       type: type
     });
   });
@@ -830,14 +832,24 @@ async function fetchAlphaTokenInfo(item) {
   return null;
 }
 
-// 加载Alpha K线数据
+// 加载Alpha K线数据 - 优先使用GeckoTerminal API
 async function loadAlphaKlines(item, interval) {
   const loading = document.getElementById('alphaChartLoading');
   const infoEl = document.getElementById('alphaChartInfo');
   if (loading) loading.style.display = 'block';
 
   try {
-    // 构建symbol: 如果有tokenId用ALPHA_<id>USDT，否则用symbol
+    // 优先尝试GeckoTerminal API（需要合约地址）
+    if (item.contractAddress) {
+      const geckoData = await fetchGeckoTerminalKlines(item.contractAddress, item.network || 'bsc', interval);
+      if (geckoData && geckoData.length > 0) {
+        if (loading) loading.style.display = 'none';
+        drawAlphaChart(geckoData, infoEl);
+        return;
+      }
+    }
+
+    // 备用：尝试Binance Alpha API
     let symbol = item.tradingPair;
     if (item.tokenId) {
       symbol = `ALPHA_${item.tokenId}USDT`;
@@ -872,6 +884,82 @@ async function loadAlphaKlines(item, interval) {
   } catch (e) {
     console.error('获取Alpha K线失败:', e);
     if (loading) loading.textContent = '加载失败';
+  }
+}
+
+// 从GeckoTerminal获取K线数据
+async function fetchGeckoTerminalKlines(contractAddress, network, interval) {
+  try {
+    // 映射网络名称
+    const networkMap = { 'bsc': 'bsc', 'eth': 'eth', 'sol': 'solana', 'base': 'base' };
+    const geckoNetwork = networkMap[network.toLowerCase()] || network.toLowerCase();
+
+    // 1. 获取该token的交易池
+    const poolsUrl = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/tokens/${contractAddress}/pools?page=1`;
+    console.log('GeckoTerminal获取pools:', poolsUrl);
+
+    const poolsRes = await window.fetch(poolsUrl);
+    if (!poolsRes.ok) return null;
+
+    const poolsData = await poolsRes.json();
+    if (!poolsData.data || poolsData.data.length === 0) return null;
+
+    // 使用第一个pool（通常是流动性最大的）
+    const poolAddress = poolsData.data[0].attributes.address;
+    console.log('使用pool:', poolAddress);
+
+    // 2. 映射interval到GeckoTerminal格式
+    // GeckoTerminal: timeframe=day|hour|minute, aggregate=1|4|12(hour)|1|5|15(minute)
+    let timeframe, aggregate;
+    switch (interval) {
+      case '15m':
+        timeframe = 'minute';
+        aggregate = 15;
+        break;
+      case '1h':
+        timeframe = 'hour';
+        aggregate = 1;
+        break;
+      case '4h':
+        timeframe = 'hour';
+        aggregate = 4;
+        break;
+      case '1d':
+        timeframe = 'day';
+        aggregate = 1;
+        break;
+      default:
+        timeframe = 'hour';
+        aggregate = 1;
+    }
+
+    // 3. 获取OHLCV数据
+    const ohlcvUrl = `https://api.geckoterminal.com/api/v2/networks/${geckoNetwork}/pools/${poolAddress}/ohlcv/${timeframe}?aggregate=${aggregate}&limit=100&currency=usd`;
+    console.log('GeckoTerminal获取OHLCV:', ohlcvUrl);
+
+    const ohlcvRes = await window.fetch(ohlcvUrl);
+    if (!ohlcvRes.ok) return null;
+
+    const ohlcvData = await ohlcvRes.json();
+    if (!ohlcvData.data || !ohlcvData.data.attributes || !ohlcvData.data.attributes.ohlcv_list) return null;
+
+    // 4. 转换数据格式为与Binance相同的格式 [time, open, high, low, close, volume]
+    // GeckoTerminal格式: [timestamp, open, high, low, close, volume]
+    const klines = ohlcvData.data.attributes.ohlcv_list.map(item => [
+      item[0] * 1000, // 时间戳转毫秒
+      item[1].toString(),
+      item[2].toString(),
+      item[3].toString(),
+      item[4].toString(),
+      item[5].toString()
+    ]).reverse(); // GeckoTerminal返回的是倒序，需要反转
+
+    console.log('GeckoTerminal K线数据:', klines.length, '条');
+    return klines;
+
+  } catch (e) {
+    console.error('GeckoTerminal API失败:', e);
+    return null;
   }
 }
 
