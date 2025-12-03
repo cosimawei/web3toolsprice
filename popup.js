@@ -25,7 +25,8 @@ const DEFAULT_CRYPTO = [
 
 // 股市（默认）
 const DEFAULT_STOCKS = [
-  { symbol: 'sh000001', name: '上证指数', fullName: 'SSE Composite', icon: '📊', source: 'cn', tradingPair: 'sh000001', type: 'stock' }
+  { symbol: 'sh000001', name: '上证指数', fullName: 'SSE Composite', icon: '📊', source: 'cn', tradingPair: 'sh000001', type: 'stock' },
+  { symbol: 'usIXIC', name: '纳斯达克', fullName: 'NASDAQ Composite', icon: '📈', source: 'us', tradingPair: 'usIXIC', type: 'stock' }
 ];
 
 // 贵金属（固定）
@@ -354,7 +355,7 @@ async function fetchStockPrices() {
   const fetchOnce = async () => {
     for (const stock of stockList) {
       try {
-        // 使用腾讯股票API（支持A股、港股）
+        // 使用腾讯股票API（支持A股、港股、美股）
         const code = stock.tradingPair;
         const r = await window.fetch(`https://qt.gtimg.cn/q=${code}`);
         if (r.ok) {
@@ -365,8 +366,10 @@ async function fetchStockPrices() {
           const parts = text.split('~');
           if (parts.length > 32) {
             const price = parseFloat(parts[3]);
-            const change = parseFloat(parts[32]);
-            priceData[stock.symbol] = { price, changePercent: change, isStock: true };
+            // 美股涨跌幅在parts[31]，A股在parts[32]
+            const isUS = code.startsWith('us');
+            const change = parseFloat(parts[isUS ? 31 : 32]);
+            priceData[stock.symbol] = { price, changePercent: change, isStock: true, isUS };
             updateCard(stock.symbol);
           }
         }
@@ -566,7 +569,8 @@ function updateCard(symbol) {
   const changeEl = document.getElementById(`change-${symbol}`);
   if (!priceEl || !changeEl) return;
 
-  const prefix = data.isStock ? '¥' : '$';
+  // 美股用$，A股港股用¥
+  const prefix = data.isStock ? (data.isUS ? '$' : '¥') : '$';
   priceEl.textContent = `${prefix}${formatPrice(data.price)}`;
   priceEl.style.animation = 'none';
   setTimeout(() => priceEl.style.animation = 'priceUpdate 0.2s ease', 10);
