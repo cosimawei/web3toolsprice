@@ -134,6 +134,7 @@ const EXCHANGES = {
 document.addEventListener('DOMContentLoaded', function() {
   console.log('设置页面已加载');
   loadCustomCoins();
+  loadCustomAlpha();
   loadCustomStocks();
   loadCustomMeme();
   loadApiConfig();
@@ -229,6 +230,19 @@ document.addEventListener('DOMContentLoaded', function() {
         const memeKey = e.target.dataset.key;
         if (memeKey) {
           removeCustomMeme(memeKey);
+        }
+      }
+    });
+  }
+
+  // 使用事件委托处理删除Alpha代币按钮点击
+  const customAlphaList = document.getElementById('customAlphaList');
+  if (customAlphaList) {
+    customAlphaList.addEventListener('click', function(e) {
+      if (e.target.classList.contains('remove-btn')) {
+        const alphaKey = e.target.dataset.key;
+        if (alphaKey) {
+          removeCustomAlpha(alphaKey);
         }
       }
     });
@@ -494,6 +508,58 @@ function loadCustomCoins() {
         </div>
       `;
     }).join('');
+  });
+}
+
+// 加载并显示Alpha代币列表
+function loadCustomAlpha() {
+  console.log('加载Alpha代币列表...');
+  chrome.storage.local.get([CUSTOM_ALPHA_KEY], function(result) {
+    const customAlpha = result[CUSTOM_ALPHA_KEY] || [];
+    const listContainer = document.getElementById('customAlphaList');
+
+    console.log('已加载的Alpha代币:', customAlpha);
+
+    if (!listContainer) return;
+
+    if (customAlpha.length === 0) {
+      listContainer.innerHTML = '<div class="empty-state">暂无Alpha代币</div>';
+      return;
+    }
+
+    listContainer.innerHTML = customAlpha.map(coin => {
+      const noteDisplay = coin.note ? `<div class="coin-full-name" style="color:#ffc107;">📝 ${coin.note}</div>` : '';
+
+      return `
+        <div class="custom-coin-item">
+          <div class="coin-info">
+            <div class="coin-symbol">
+              ${coin.name}
+              <span class="source-badge binance_alpha">Alpha</span>
+            </div>
+            <div class="coin-full-name">${coin.tradingPair || coin.symbol}</div>
+            ${noteDisplay}
+          </div>
+          <button class="remove-btn" data-key="${coin.symbol}">删除</button>
+        </div>
+      `;
+    }).join('');
+  });
+}
+
+// 删除Alpha代币
+function removeCustomAlpha(alphaKey) {
+  if (!confirm('确定要删除这个Alpha代币吗？')) {
+    return;
+  }
+
+  chrome.storage.local.get([CUSTOM_ALPHA_KEY], function(result) {
+    const customAlpha = result[CUSTOM_ALPHA_KEY] || [];
+    const updatedAlpha = customAlpha.filter(coin => coin.symbol !== alphaKey);
+
+    chrome.storage.local.set({ [CUSTOM_ALPHA_KEY]: updatedAlpha }, function() {
+      loadCustomAlpha();
+    });
   });
 }
 
