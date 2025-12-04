@@ -342,42 +342,13 @@ body {
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* 备注相关样式 */
-.note-indicator {
-  font-size: 12px;
-  margin-left: 4px;
-}
-
-.note-tooltip {
-  display: none;
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.9);
-  color: #fff;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+/* 备注样式 - 直接显示在卡片上 */
+.coin-card-note {
+  font-size: 11px;
+  color: #ffc107;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
-  white-space: normal;
-  word-wrap: break-word;
-  z-index: 100;
-  margin-bottom: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.note-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: rgba(0, 0, 0, 0.9);
-}
-
-.coin-card:hover .note-tooltip {
-  display: block;
+  max-width: 100%;
 }

@@ -216,9 +216,9 @@ function renderPanel(gridId, list) {
     const marketFlag = item.type === 'stock' && MARKET_FLAGS[item.source]
       ? `<span class="market-flag">${MARKET_FLAGS[item.source]}</span>` : '';
 
-    // 备注标记（Alpha和MEME）
+    // 备注显示（Alpha和MEME）
     const hasNote = (item.type === 'alpha' || item.type === 'meme') && item.note;
-    const noteIndicator = hasNote ? '<span class="note-indicator">📝</span>' : '';
+    const noteHtml = hasNote ? `<div class="coin-card-note">📝 ${item.note}</div>` : '';
 
     card.innerHTML = `
       <div class="coin-card-header">
@@ -226,7 +226,6 @@ function renderPanel(gridId, list) {
         <span class="coin-card-name">${item.name}</span>
         ${sourceIcon}
         ${marketFlag}
-        ${noteIndicator}
       </div>
       <div class="coin-card-price" id="price-${item.symbol}">
         <span class="coin-card-loading">加载中...</span>
@@ -234,7 +233,7 @@ function renderPanel(gridId, list) {
       <div class="coin-card-change" id="change-${item.symbol}">
         <span>--</span>
       </div>
-      ${hasNote ? `<div class="note-tooltip">${item.note}</div>` : ''}
+      ${noteHtml}
     `;
 
     // 拖拽

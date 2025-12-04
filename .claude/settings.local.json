@@ -21,7 +21,12 @@
       "WebFetch(domain:dexscreener.com)",
       "WebFetch(domain:docs.dexscreener.com)",
       "WebFetch(domain:developers.binance.com)",
-      "WebFetch(domain:api.geckoterminal.com)"
+      "WebFetch(domain:api.geckoterminal.com)",
+      "Bash(powershell -Command \"Compress-Archive -Path manifest.json,popup.html,popup.js,settings.html,settings.js,styles.css,icons -DestinationPath crypto-tracker.zip -Force\")",
+      "Bash(dir:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(set http_proxy=http://127.0.0.1:7897)",
+      "Bash(set https_proxy=http://127.0.0.1:7897)"
     ],
     "deny": [],
     "ask": []
