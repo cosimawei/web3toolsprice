@@ -757,21 +757,83 @@ function openChart(item) {
   iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
 
   if (item.type === 'alpha' || item.type === 'meme') {
-    // Alpha和MEME代币跳转到debot查看K线
+    // Alpha和MEME代币 - 尝试DexScreener K线
     const network = item.network || 'bsc';
     const address = item.contractAddress;
+
     if (address) {
+      // 网络ID映射到DexScreener格式
+      const dexScreenerChain = { bsc: 'bsc', eth: 'ethereum', sol: 'solana', base: 'base' };
+      const chainId = dexScreenerChain[network.toLowerCase()] || network.toLowerCase();
+      const dexScreenerUrl = `https://dexscreener.com/${chainId}/${address}?embed=1&theme=dark&trades=0&info=0`;
+
+      // 创建带iframe和备用按钮的布局
       container.innerHTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
-          <p style="color:#fff;margin-bottom:20px;font-size:14px;">${item.type === 'alpha' ? 'Alpha' : 'MEME'}代币K线请在Debot查看</p>
-          <button id="openDebotBtn" style="padding:12px 24px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
-            🔗 打开Debot查看K线
-          </button>
+        <div style="display:flex;flex-direction:column;height:100%;">
+          <div style="flex:1;position:relative;">
+            <iframe id="dexScreenerFrame" src="${dexScreenerUrl}" style="width:100%;height:100%;border:none;border-radius:8px;" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+            <div id="iframeError" style="display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(30,60,114,0.95);border-radius:8px;flex-direction:column;align-items:center;justify-content:center;">
+              <p style="color:#fff;margin-bottom:16px;font-size:14px;">DexScreener 不支持嵌入显示</p>
+              <div style="display:flex;gap:12px;">
+                <button id="openDexScreenerBtn" style="padding:10px 20px;background:#00d395;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">
+                  📊 打开DexScreener
+                </button>
+                <button id="openDebotBtn2" style="padding:10px 20px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">
+                  🔗 打开Debot
+                </button>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:center;gap:12px;padding:8px 0;background:rgba(0,0,0,0.2);border-radius:0 0 8px 8px;">
+            <button id="openDexScreenerBtnBottom" style="padding:6px 16px;background:#00d395;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">
+              📊 DexScreener
+            </button>
+            <button id="openDebotBtnBottom" style="padding:6px 16px;background:#4CAF50;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">
+              🔗 Debot
+            </button>
+          </div>
         </div>
       `;
-      document.getElementById('openDebotBtn').addEventListener('click', () => {
-        window.open(`https://debot.ai/token/${network}/${address}`, '_blank');
+
+      const dexScreenerPageUrl = `https://dexscreener.com/${chainId}/${address}`;
+      const debotUrl = `https://debot.ai/token/${network}/${address}`;
+
+      // 底部按钮事件
+      document.getElementById('openDexScreenerBtnBottom').addEventListener('click', () => {
+        window.open(dexScreenerPageUrl, '_blank');
       });
+      document.getElementById('openDebotBtnBottom').addEventListener('click', () => {
+        window.open(debotUrl, '_blank');
+      });
+
+      // iframe加载错误处理
+      const iframeEl = document.getElementById('dexScreenerFrame');
+      const errorDiv = document.getElementById('iframeError');
+
+      iframeEl.onerror = () => {
+        errorDiv.style.display = 'flex';
+      };
+
+      // 检测iframe是否被阻止（3秒后检查）
+      setTimeout(() => {
+        try {
+          // 尝试访问iframe内容，如果被阻止会抛出错误
+          if (iframeEl.contentDocument === null || iframeEl.contentWindow.length === 0) {
+            // 可能被X-Frame-Options阻止
+          }
+        } catch (e) {
+          // 跨域错误，说明加载成功了
+        }
+      }, 3000);
+
+      // 备用按钮事件（错误显示时）
+      setTimeout(() => {
+        const btn1 = document.getElementById('openDexScreenerBtn');
+        const btn2 = document.getElementById('openDebotBtn2');
+        if (btn1) btn1.addEventListener('click', () => window.open(dexScreenerPageUrl, '_blank'));
+        if (btn2) btn2.addEventListener('click', () => window.open(debotUrl, '_blank'));
+      }, 100);
+
     } else {
       container.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
