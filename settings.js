@@ -811,7 +811,7 @@ async function addMeme() {
   const addBtn = document.getElementById('addMemeBtn');
 
   const name = nameInput.value.trim();
-  const contract = contractInput.value.trim().toLowerCase();
+  const contract = contractInput.value.trim(); // 保持原始大小写，因为某些链（如Solana）的地址大小写敏感
   const note = noteInput ? noteInput.value.trim() : '';
   const network = getSelectedMemeNetwork();
 
