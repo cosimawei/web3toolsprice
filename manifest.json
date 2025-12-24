@@ -3,7 +3,7 @@
 
   "manifest_version": 3,
   "name": "多资产价格追踪器",
-  "version": "3.9.1",
+  "version": "3.9.2",
   "description": "实时追踪虚拟币、股市、贵金属价格，支持TradingView K线图，多交易所数据源，云端同步",
   "action": {
     "default_popup": "popup.html",
@@ -29,6 +29,7 @@
     "https://api.bitget.com/*",
     "https://api.mexc.com/*",
     "https://qt.gtimg.cn/*",
+    "https://hq.sinajs.cn/*",
     "https://tsgold.market.alicloudapi.com/*",
     "https://api.geckoterminal.com/*",
     "https://*.workers.dev/*",

@@ -34,6 +34,32 @@ body {
   font-weight: 600;
 }
 
+/* 汇率显示 */
+.exchange-rate {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 215, 0, 0.15);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.rate-label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.rate-value {
+  color: #ffd700;
+  font-weight: 600;
+}
+
+.rate-unit {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
 /* Tabs */
 .tabs {
   display: flex;
