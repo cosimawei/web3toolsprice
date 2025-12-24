@@ -67,6 +67,9 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.tabs.create({ url: 'https://www.tradingview.com/chart/' });
   });
 
+  // 点击汇率查看K线
+  document.getElementById('exchangeRate').addEventListener('click', openExchangeRateChart);
+
   // 图表
   document.getElementById('closeChart').addEventListener('click', closeChart);
 
@@ -899,6 +902,22 @@ function openChart(item) {
 function closeChart() {
   document.getElementById('chartSection').classList.remove('expanded');
   setTimeout(() => document.getElementById('tradingview-chart').innerHTML = '', 400);
+}
+
+// 打开汇率K线图
+function openExchangeRateChart() {
+  const section = document.getElementById('chartSection');
+  document.getElementById('chartCoinName').textContent = 'USD/CNH 离岸人民币';
+  section.classList.add('expanded');
+
+  const container = document.getElementById('tradingview-chart');
+  container.innerHTML = '';
+
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
+  // 使用TradingView外汇符号
+  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=FX_IDC:USDCNH&interval=60&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
+  container.appendChild(iframe);
 }
 
 // ==================== 汇率获取 ====================
