@@ -67,9 +67,6 @@ document.addEventListener('DOMContentLoaded', function() {
     chrome.tabs.create({ url: 'https://www.tradingview.com/chart/' });
   });
 
-  // 点击汇率查看K线
-  document.getElementById('exchangeRate').addEventListener('click', openExchangeRateChart);
-
   // 图表
   document.getElementById('closeChart').addEventListener('click', closeChart);
 
@@ -77,7 +74,6 @@ document.addEventListener('DOMContentLoaded', function() {
   loadAllData().then(() => {
     renderAllPanels();
     connectAll();
-    fetchExchangeRate(); // 获取汇率
   });
 });
 
@@ -277,7 +273,6 @@ function refreshAll() {
   // 重新渲染面板
   renderAllPanels();
   connectAll();
-  fetchExchangeRate(); // 刷新汇率
 }
 
 function closeAllConnections() {
@@ -902,62 +897,6 @@ function openChart(item) {
 function closeChart() {
   document.getElementById('chartSection').classList.remove('expanded');
   setTimeout(() => document.getElementById('tradingview-chart').innerHTML = '', 400);
-}
-
-// 打开汇率K线图
-function openExchangeRateChart() {
-  const section = document.getElementById('chartSection');
-  document.getElementById('chartCoinName').textContent = 'USD/CNH 离岸人民币';
-  section.classList.add('expanded');
-
-  const container = document.getElementById('tradingview-chart');
-  container.innerHTML = '';
-
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:8px';
-  // 使用TradingView外汇符号
-  iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=FX_IDC:USDCNH&interval=60&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
-  container.appendChild(iframe);
-}
-
-// ==================== 汇率获取 ====================
-async function fetchExchangeRate() {
-  console.log('开始获取汇率...');
-  try {
-    // 使用新浪API获取美元兑离岸人民币汇率
-    const r = await window.fetch('https://hq.sinajs.cn/list=fx_susdcnh');
-    console.log('汇率API响应:', r.status);
-    if (r.ok) {
-      const buffer = await r.arrayBuffer();
-      const decoder = new TextDecoder('gbk');
-      const text = decoder.decode(buffer);
-      console.log('汇率原始数据:', text);
-      // 格式: var hq_str_fx_susdcnh="...,7.2850,..."
-      const parts = text.split(',');
-      if (parts.length > 8) {
-        const rate = parseFloat(parts[8]); // 当前价格
-        if (!isNaN(rate) && rate > 0) {
-          const rateEl = document.getElementById('usdCnyRate');
-          if (rateEl) {
-            rateEl.textContent = rate.toFixed(4);
-          }
-          console.log('汇率获取成功:', rate);
-          return;
-        }
-      }
-    }
-  } catch (e) {
-    console.error('汇率获取失败:', e);
-  }
-
-  // 备用：使用固定汇率
-  const rateEl = document.getElementById('usdCnyRate');
-  if (rateEl && rateEl.textContent === '--') {
-    rateEl.textContent = '7.0050';
-  }
-
-  // 每5分钟更新一次汇率
-  setTimeout(fetchExchangeRate, 300000);
 }
 
 // 清理
