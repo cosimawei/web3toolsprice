@@ -12,7 +12,17 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 // 安装时初始化
 chrome.runtime.onInstalled.addListener(() => {
   console.log('多币种追踪器已安装');
+  initializeExtension();
+});
 
+// Service Worker启动时初始化（包括被唤醒后）
+chrome.runtime.onStartup.addListener(() => {
+  console.log('浏览器启动，初始化扩展...');
+  initializeExtension();
+});
+
+// 初始化函数
+function initializeExtension() {
   // 立即获取初始价格
   updateBTCPrice();
 
@@ -27,7 +37,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
   // 启动badge滚动显示
   startBadgeScroll();
-});
+}
 
 // 连接Binance WebSocket获取实时价格
 function connectWebSocket() {
@@ -115,6 +125,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
       console.log('检测到连接断开，尝试重连...');
       connectWebSocket();
     }
+  } else if (alarm.name === 'keepAlive') {
+    // Service Worker被唤醒，确保滚动功能在运行
+    if (!badgeScrollTimer) {
+      console.log('重新启动Badge滚动...');
+      startBadgeScroll();
+    }
+    // 更新一次显示
+    updateBadgeDisplay();
   }
 });
 
@@ -162,14 +180,18 @@ async function updateBTCPrice() {
   }
 }
 
-// 启动Badge滚动显示
+// 启动Badge滚动显示 - 使用chrome.alarms保证在Service Worker挂起后仍能工作
 function startBadgeScroll() {
+  // 使用alarms API - 最小间隔是0.5分钟，但我们可以用它来保持Service Worker活跃
+  // 同时用setInterval来实现快速滚动
+  chrome.alarms.create('keepAlive', { periodInMinutes: 0.5 });
+
   // 清除旧的定时器
   if (badgeScrollTimer) {
     clearInterval(badgeScrollTimer);
   }
 
-  // 每500毫秒更新一次badge显示（加快滚动速度）
+  // 每500毫秒更新一次badge显示
   badgeScrollTimer = setInterval(() => {
     updateBadgeDisplay();
   }, 500);
