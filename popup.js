@@ -557,8 +557,11 @@ async function fetchOilPrice() {
           const price = parseFloat(parts[0]);
           const change = parseFloat(parts[1]);
           if (!isNaN(price) && price > 0) {
+            // 换算人民币价格（美元/桶 * 汇率）
+            const cnPrice = price * 7.1;
             priceData['USOIL'] = {
               price: price,
+              cnPrice: cnPrice,
               changePercent: change,
               isMetal: true
             };
@@ -587,7 +590,11 @@ function updateOilCard() {
   const priceEl = document.getElementById('price-USOIL');
   const changeEl = document.getElementById('change-USOIL');
   if (priceEl) {
-    priceEl.textContent = `$${data.price.toFixed(2)}`;
+    let priceText = `$${data.price.toFixed(2)}`;
+    if (data.cnPrice) {
+      priceText += `<br><span style="font-size:12px;color:rgba(255,255,255,0.7)">(¥${data.cnPrice.toFixed(2)}/桶)</span>`;
+    }
+    priceEl.innerHTML = priceText;
   }
   if (changeEl) {
     const ch = data.changePercent;
