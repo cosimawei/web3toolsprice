@@ -36,7 +36,8 @@ const DEFAULT_STOCKS = [
 // 贵金属（固定）
 const DEFAULT_METALS = [
   { symbol: 'XAUUSD', name: '黄金', fullName: 'Gold', icon: '🥇', source: 'metal', tradingPair: 'XAUUSD', type: 'metal' },
-  { symbol: 'XAGUSD', name: '白银', fullName: 'Silver', icon: '🥈', source: 'metal', tradingPair: 'XAGUSD', type: 'metal' }
+  { symbol: 'XAGUSD', name: '白银', fullName: 'Silver', icon: '🥈', source: 'metal', tradingPair: 'XAGUSD', type: 'metal' },
+  { symbol: 'USOIL', name: '原油', fullName: 'Crude Oil', icon: '🛢️', source: 'metal', tradingPair: 'USOIL', type: 'metal' }
 ];
 
 // 数据列表
@@ -491,6 +492,9 @@ async function fetchMetalPrices() {
     // 始终获取国际金价（Binance PAXG）
     await fetchInternationalGold();
 
+    // 获取原油价格
+    await fetchOilPrice();
+
     if (appCode) {
       // 有AppCode，使用阿里云API获取中国金价和白银
       await fetchMetalFromApi(appCode);
@@ -532,6 +536,63 @@ async function fetchInternationalGold() {
     }
   } catch (e) {
     console.error('国际黄金价格获取失败:', e);
+  }
+}
+
+// 获取原油价格（腾讯期货）
+async function fetchOilPrice() {
+  try {
+    // 使用腾讯期货API获取WTI原油
+    const res = await window.fetch('https://qt.gtimg.cn/q=nf_CL00Y');
+    if (res.ok) {
+      const buffer = await res.arrayBuffer();
+      const decoder = new TextDecoder('gbk');
+      const text = decoder.decode(buffer);
+      console.log('原油数据:', text);
+      // 格式: v_nf_CL00Y="...,价格,涨跌,涨跌幅,..."
+      const match = text.match(/="([^"]+)"/);
+      if (match) {
+        const parts = match[1].split('~');
+        if (parts.length > 5) {
+          const price = parseFloat(parts[3]);
+          const change = parseFloat(parts[32]) || 0;
+          if (!isNaN(price) && price > 0) {
+            priceData['USOIL'] = {
+              price: price,
+              changePercent: change,
+              isMetal: true
+            };
+            updateOilCard();
+            console.log('原油价格:', price, '涨跌:', change);
+            return;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('原油价格获取失败:', e);
+  }
+  // 备用：显示提示
+  const oilCard = document.getElementById('price-USOIL');
+  if (oilCard) {
+    oilCard.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.6)">点击查看K线</span>';
+  }
+}
+
+// 更新原油卡片
+function updateOilCard() {
+  const data = priceData['USOIL'];
+  if (!data) return;
+
+  const priceEl = document.getElementById('price-USOIL');
+  const changeEl = document.getElementById('change-USOIL');
+  if (priceEl) {
+    priceEl.textContent = `$${data.price.toFixed(2)}`;
+  }
+  if (changeEl) {
+    const ch = data.changePercent;
+    changeEl.textContent = `${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%`;
+    changeEl.className = 'change ' + (ch >= 0 ? 'up' : 'down');
   }
 }
 
@@ -887,7 +948,9 @@ function openChart(item) {
     iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
   } else if (item.type === 'metal') {
     // 贵金属用TradingView
-    const tvSymbol = item.symbol === 'XAUUSD' ? 'TVC:GOLD' : 'TVC:SILVER';
+    let tvSymbol = 'TVC:GOLD';
+    if (item.symbol === 'XAGUSD') tvSymbol = 'TVC:SILVER';
+    else if (item.symbol === 'USOIL') tvSymbol = 'TVC:USOIL';
     iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=15&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
   }
 
