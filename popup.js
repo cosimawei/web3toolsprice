@@ -542,20 +542,20 @@ async function fetchInternationalGold() {
 // 获取原油价格（腾讯期货）
 async function fetchOilPrice() {
   try {
-    // 使用腾讯期货API获取WTI原油
-    const res = await window.fetch('https://qt.gtimg.cn/q=nf_CL00Y');
+    // 使用腾讯期货API获取WTI原油 (hf_CL)
+    const res = await window.fetch('https://qt.gtimg.cn/q=hf_CL');
     if (res.ok) {
       const buffer = await res.arrayBuffer();
       const decoder = new TextDecoder('gbk');
       const text = decoder.decode(buffer);
       console.log('原油数据:', text);
-      // 格式: v_nf_CL00Y="...,价格,涨跌,涨跌幅,..."
+      // 格式: v_hf_CL="57.41,1.18,57.39,57.41,57.52,56.91,..."
       const match = text.match(/="([^"]+)"/);
       if (match) {
-        const parts = match[1].split('~');
-        if (parts.length > 5) {
-          const price = parseFloat(parts[3]);
-          const change = parseFloat(parts[32]) || 0;
+        const parts = match[1].split(',');
+        if (parts.length > 1) {
+          const price = parseFloat(parts[0]);
+          const change = parseFloat(parts[1]);
           if (!isNaN(price) && price > 0) {
             priceData['USOIL'] = {
               price: price,
