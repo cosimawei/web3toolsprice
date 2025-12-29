@@ -598,8 +598,9 @@ function updateOilCard() {
   }
   if (changeEl) {
     const ch = data.changePercent;
-    changeEl.textContent = `${ch >= 0 ? '+' : ''}${ch.toFixed(2)}%`;
-    changeEl.className = 'change ' + (ch >= 0 ? 'up' : 'down');
+    const pos = ch >= 0;
+    changeEl.className = `coin-card-change ${pos ? 'positive' : 'negative'}`;
+    changeEl.innerHTML = `<span>${pos ? '+' : ''}${ch.toFixed(2)}%</span>`;
   }
 }
 
