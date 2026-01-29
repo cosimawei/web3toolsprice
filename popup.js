@@ -37,7 +37,8 @@ const DEFAULT_STOCKS = [
 const DEFAULT_METALS = [
   { symbol: 'XAUUSD', name: '黄金', fullName: 'Gold', icon: '🥇', source: 'metal', tradingPair: 'XAUUSD', type: 'metal' },
   { symbol: 'XAGUSD', name: '白银', fullName: 'Silver', icon: '🥈', source: 'metal', tradingPair: 'XAGUSD', type: 'metal' },
-  { symbol: 'USOIL', name: '原油', fullName: 'Crude Oil', icon: '🛢️', source: 'metal', tradingPair: 'USOIL', type: 'metal' }
+  { symbol: 'USOIL', name: '原油', fullName: 'Crude Oil', icon: '🛢️', source: 'metal', tradingPair: 'USOIL', type: 'metal' },
+  { symbol: 'SOYBEAN', name: '大豆', fullName: 'Soybean', icon: '🫘', source: 'metal', tradingPair: 'SOYBEAN', type: 'metal' }
 ];
 
 // 数据列表
@@ -495,6 +496,9 @@ async function fetchMetalPrices() {
     // 获取原油价格
     await fetchOilPrice();
 
+    // 获取大豆价格
+    await fetchSoybeanPrice();
+
     if (appCode) {
       // 有AppCode，使用阿里云API获取中国金价和白银
       await fetchMetalFromApi(appCode);
@@ -593,6 +597,73 @@ function updateOilCard() {
     let priceText = `$${data.price.toFixed(2)}`;
     if (data.cnPrice) {
       priceText += `<br><span style="font-size:12px;color:rgba(255,255,255,0.7)">(¥${data.cnPrice.toFixed(2)}/桶)</span>`;
+    }
+    priceEl.innerHTML = priceText;
+  }
+  if (changeEl) {
+    const ch = data.changePercent;
+    const pos = ch >= 0;
+    changeEl.className = `coin-card-change ${pos ? 'positive' : 'negative'}`;
+    changeEl.innerHTML = `<span>${pos ? '+' : ''}${ch.toFixed(2)}%</span>`;
+  }
+}
+
+// 获取大豆价格（腾讯期货）
+async function fetchSoybeanPrice() {
+  try {
+    // 使用腾讯期货API获取CBOT大豆 (hf_S)
+    const res = await window.fetch('https://qt.gtimg.cn/q=hf_S');
+    if (res.ok) {
+      const buffer = await res.arrayBuffer();
+      const decoder = new TextDecoder('gbk');
+      const text = decoder.decode(buffer);
+      console.log('大豆数据:', text);
+      // 格式: v_hf_S="1075.90,0.08,..."
+      const match = text.match(/="([^"]+)"/);
+      if (match) {
+        const parts = match[1].split(',');
+        if (parts.length > 1) {
+          const price = parseFloat(parts[0]);
+          const change = parseFloat(parts[1]);
+          if (!isNaN(price) && price > 0) {
+            // 大豆价格单位是美分/蒲式耳，换算成美元
+            const priceUsd = price / 100;
+            // 换算人民币价格（美元/蒲式耳 * 汇率）
+            const cnPrice = priceUsd * 7.1;
+            priceData['SOYBEAN'] = {
+              price: priceUsd,
+              cnPrice: cnPrice,
+              changePercent: change,
+              isMetal: true
+            };
+            updateSoybeanCard();
+            console.log('大豆价格:', priceUsd, '涨跌:', change);
+            return;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('大豆价格获取失败:', e);
+  }
+  // 备用：显示提示
+  const soybeanCard = document.getElementById('price-SOYBEAN');
+  if (soybeanCard) {
+    soybeanCard.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.6)">点击查看K线</span>';
+  }
+}
+
+// 更新大豆卡片
+function updateSoybeanCard() {
+  const data = priceData['SOYBEAN'];
+  if (!data) return;
+
+  const priceEl = document.getElementById('price-SOYBEAN');
+  const changeEl = document.getElementById('change-SOYBEAN');
+  if (priceEl) {
+    let priceText = `$${data.price.toFixed(2)}`;
+    if (data.cnPrice) {
+      priceText += `<br><span style="font-size:12px;color:rgba(255,255,255,0.7)">(¥${data.cnPrice.toFixed(2)}/蒲式耳)</span>`;
     }
     priceEl.innerHTML = priceText;
   }
@@ -955,6 +1026,21 @@ function openChart(item) {
     }
     iframe.src = `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=ffffff&theme=light&style=1&timezone=Asia%2FShanghai&locale=zh_CN`;
   } else if (item.type === 'metal') {
+    // 大豆期货在嵌入式widget中不支持，需要打开网页查看
+    if (item.symbol === 'SOYBEAN') {
+      container.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;background:rgba(255,255,255,0.1);border-radius:8px;">
+          <p style="color:#fff;margin-bottom:20px;font-size:14px;">大豆期货K线需要在TradingView网站查看</p>
+          <button id="openTvBtn" style="padding:12px 24px;background:#4CAF50;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;">
+            🔗 打开TradingView查看
+          </button>
+        </div>
+      `;
+      document.getElementById('openTvBtn').addEventListener('click', () => {
+        window.open('https://www.tradingview.com/chart/?symbol=CBOT:ZS1!', '_blank');
+      });
+      return;
+    }
     // 贵金属用TradingView
     let tvSymbol = 'TVC:GOLD';
     if (item.symbol === 'XAGUSD') tvSymbol = 'TVC:SILVER';
